@@ -13,6 +13,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.TextUnit
 import android.widget.Toast
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -119,10 +120,74 @@ fun RestaurantAppScreen(viewModel: RestaurantViewModel) {
 
     var currentScreen by rememberSaveable { mutableStateOf("DASHBOARD") }
 
+    // Navigation history stack for Back, Forward, Home navigation compatibility
+    var historyStack by remember { mutableStateOf(listOf("DASHBOARD")) }
+    var historyIndex by remember { mutableStateOf(0) }
+
+    fun navigateTo(screen: String, tabIndex: Int) {
+        val currentList = historyStack.toMutableList()
+        val truncated = currentList.subList(0, historyIndex + 1).toMutableList()
+        if (truncated.lastOrNull() != screen) {
+            truncated.add(screen)
+        }
+        historyStack = truncated
+        historyIndex = truncated.lastIndex
+        currentScreen = screen
+        currentTab = tabIndex
+    }
+
+    fun goBack() {
+        if (historyIndex > 0) {
+            historyIndex--
+            val screen = historyStack[historyIndex]
+            currentScreen = screen
+            currentTab = when (screen) {
+                "VENTAS" -> 0
+                "COMANDAS" -> 1
+                "ALMACEN" -> 2
+                "IMPRESORA" -> 3
+                "CIERRES" -> 4
+                "CONFIG" -> 5
+                else -> -1
+            }
+        } else {
+            if (currentScreen != "DASHBOARD") {
+                currentScreen = "DASHBOARD"
+                currentTab = -1
+            }
+        }
+    }
+
+    fun goForward() {
+        if (historyIndex < historyStack.lastIndex) {
+            historyIndex++
+            val screen = historyStack[historyIndex]
+            currentScreen = screen
+            currentTab = when (screen) {
+                "VENTAS" -> 0
+                "COMANDAS" -> 1
+                "ALMACEN" -> 2
+                "IMPRESORA" -> 3
+                "CIERRES" -> 4
+                "CONFIG" -> 5
+                else -> -1
+            }
+        }
+    }
+
+    fun goHome() {
+        navigateTo("DASHBOARD", -1)
+    }
+
+    // Capture physical/device/system Back button
+    BackHandler(enabled = historyIndex > 0 || currentScreen != "DASHBOARD") {
+        goBack()
+    }
+
     // Synchronize programmatic changes to currentTab (e.g. from tests) to keep full compatibility!
     LaunchedEffect(currentTab) {
         if (currentTab in 0..5) {
-            currentScreen = when (currentTab) {
+            val screen = when (currentTab) {
                 0 -> "VENTAS"
                 1 -> "COMANDAS"
                 2 -> "ALMACEN"
@@ -130,6 +195,9 @@ fun RestaurantAppScreen(viewModel: RestaurantViewModel) {
                 4 -> "CIERRES"
                 5 -> "CONFIG"
                 else -> "DASHBOARD"
+            }
+            if (currentScreen != screen) {
+                navigateTo(screen, currentTab)
             }
         }
     }
@@ -139,95 +207,153 @@ fun RestaurantAppScreen(viewModel: RestaurantViewModel) {
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        when (currentScreen) {
-            "DASHBOARD" -> {
-                DashboardScreen(
-                    viewModel = viewModel,
-                    restaurantName = restaurantName,
-                    logoType = logoType,
-                    logoBase64 = restaurantLogoBase64,
-                    onNavigate = { tabName, tabIndex ->
-                        currentTab = tabIndex
-                        currentScreen = tabName
-                    }
-                )
+        // Main content area, with bottom padding to avoid overlap with floating bar
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 76.dp)
+        ) {
+            when (currentScreen) {
+                "DASHBOARD" -> {
+                    DashboardScreen(
+                        viewModel = viewModel,
+                        restaurantName = restaurantName,
+                        logoType = logoType,
+                        logoBase64 = restaurantLogoBase64,
+                        onNavigate = { tabName, tabIndex ->
+                            navigateTo(tabName, tabIndex)
+                        }
+                    )
+                }
+                "VENTAS" -> {
+                    SalesTab(
+                        viewModel = viewModel,
+                        dishes = dishes,
+                        cart = cart,
+                        onBack = { goBack() }
+                    )
+                }
+                "COMANDAS" -> {
+                    ComandasTab(
+                        viewModel = viewModel,
+                        activeOrders = activeOrders,
+                        allOrders = allOrders,
+                        onBack = { goBack() }
+                    )
+                }
+                "ALMACEN" -> {
+                    AlmacenTab(
+                        viewModel = viewModel,
+                        dishes = dishes,
+                        onBack = { goBack() }
+                    )
+                }
+                "IMPRESORA" -> {
+                    ImpresoraTab(
+                        viewModel = viewModel,
+                        allOrders = allOrders,
+                        onBack = { goBack() }
+                    )
+                }
+                "CIERRES" -> {
+                    CierresTab(
+                        viewModel = viewModel,
+                        closures = closures,
+                        activeOrders = activeOrders,
+                        activeOrderItems = activeOrderItems,
+                        onBack = { goBack() }
+                    )
+                }
+                "CONFIG" -> {
+                    ConfigTab(
+                        viewModel = viewModel,
+                        name = restaurantName,
+                        address = restaurantAddress,
+                        phone = restaurantPhone,
+                        logoType = logoType,
+                        onBack = { goBack() }
+                    )
+                }
+                "PRODUCTOS" -> {
+                    ProductosScreen(
+                        viewModel = viewModel,
+                        dishes = dishes,
+                        onBack = { goBack() }
+                    )
+                }
             }
-            "VENTAS" -> {
-                SalesTab(
-                    viewModel = viewModel,
-                    dishes = dishes,
-                    cart = cart,
-                    onBack = { 
-                        currentScreen = "DASHBOARD"
-                        currentTab = -1 // Reset out of index map so clicking Dashboard works again
+        }
+
+        // Floating Glassmorphic Pill Navigation Bar at Bottom Center
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .navigationBarsPadding(),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+                modifier = Modifier
+                    .padding(bottom = 12.dp)
+                    .widthIn(max = 280.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Back button
+                    IconButton(
+                        onClick = { goBack() },
+                        enabled = historyIndex > 0,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .testTag("nav_back_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Retroceder a la pantalla anterior",
+                            modifier = Modifier.size(20.dp),
+                            tint = if (historyIndex > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                        )
                     }
-                )
-            }
-            "COMANDAS" -> {
-                ComandasTab(
-                    viewModel = viewModel,
-                    activeOrders = activeOrders,
-                    allOrders = allOrders,
-                    onBack = { 
-                        currentScreen = "DASHBOARD"
-                        currentTab = -1
+
+                    // Home button
+                    IconButton(
+                        onClick = { goHome() },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .testTag("nav_home_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Home,
+                            contentDescription = "Ir al Menú Principal",
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
-                )
-            }
-            "ALMACEN" -> {
-                AlmacenTab(
-                    viewModel = viewModel,
-                    dishes = dishes,
-                    onBack = { 
-                        currentScreen = "DASHBOARD"
-                        currentTab = -1
+
+                    // Forward button
+                    IconButton(
+                        onClick = { goForward() },
+                        enabled = historyIndex < historyStack.lastIndex,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .testTag("nav_forward_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowForward,
+                            contentDescription = "Avanzar a la pantalla siguiente",
+                            modifier = Modifier.size(20.dp),
+                            tint = if (historyIndex < historyStack.lastIndex) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                        )
                     }
-                )
-            }
-            "IMPRESORA" -> {
-                ImpresoraTab(
-                    viewModel = viewModel,
-                    allOrders = allOrders,
-                    onBack = { 
-                        currentScreen = "DASHBOARD"
-                        currentTab = -1
-                    }
-                )
-            }
-            "CIERRES" -> {
-                CierresTab(
-                    viewModel = viewModel,
-                    closures = closures,
-                    activeOrders = activeOrders,
-                    activeOrderItems = activeOrderItems,
-                    onBack = { 
-                        currentScreen = "DASHBOARD"
-                        currentTab = -1
-                    }
-                )
-            }
-            "CONFIG" -> {
-                ConfigTab(
-                    viewModel = viewModel,
-                    name = restaurantName,
-                    address = restaurantAddress,
-                    phone = restaurantPhone,
-                    logoType = logoType,
-                    onBack = { 
-                        currentScreen = "DASHBOARD"
-                        currentTab = -1
-                    }
-                )
-            }
-            "PRODUCTOS" -> {
-                ProductosScreen(
-                    viewModel = viewModel,
-                    dishes = dishes,
-                    onBack = { 
-                        currentScreen = "DASHBOARD"
-                        currentTab = -1
-                    }
-                )
+                }
             }
         }
     }
