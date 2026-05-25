@@ -1,0 +1,6 @@
+{
+  "name": "Gestión de Restaurante",
+  "description": "Aplicación para la gestión de restaurantes, comandas, control de inventario diario, impresión de tickets con logotipo y reportes de cierres de caja y ganancias.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
