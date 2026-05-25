@@ -54,6 +54,12 @@ class RestaurantViewModel(application: Application) : AndroidViewModel(applicati
         initialValue = emptyList()
     )
 
+    val customCategories: StateFlow<List<CustomCategory>> = repository.allCustomCategories.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
     private val prefs = application.getSharedPreferences("restaurant_prefs", android.content.Context.MODE_PRIVATE)
 
     // --- Active Sale / Shopping Cart State ---
@@ -136,6 +142,18 @@ class RestaurantViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     // --- Product Management (ABM) ---
+    fun addCustomCategory(name: String, iconBase64: String? = null) {
+        viewModelScope.launch {
+            repository.insertCustomCategory(CustomCategory(name = name, iconBase64 = iconBase64))
+        }
+    }
+
+    fun deleteCustomCategory(name: String) {
+        viewModelScope.launch {
+            repository.deleteCustomCategory(CustomCategory(name = name))
+        }
+    }
+
     fun addDish(name: String, price: Double, cost: Double, category: String, initialStock: Int, imageBase64: String? = null) {
         viewModelScope.launch {
             val dish = Dish(

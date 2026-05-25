@@ -565,15 +565,17 @@ fun ProductosScreen(
     dishes: List<Dish>,
     onBack: () -> Unit
 ) {
+    val customCategories by viewModel.customCategories.collectAsStateWithLifecycle()
     var selectedCategory by remember { mutableStateOf("Todos") }
     var searchQuery by remember { mutableStateOf("") }
     
     // Add/Edit Dialog Triggers
     var showAddDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf<Dish?>(null) }
+    var showAddCategoryDialog by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
-    val categories = listOf("Todos") + dishes.map { it.category }.distinct().sorted()
+    val categories = listOf("Todos") + (dishes.map { it.category } + customCategories.map { it.name }).distinct().sorted()
     val filteredDishes = dishes.filter {
         (selectedCategory == "Todos" || it.category == selectedCategory) &&
         (it.name.contains(searchQuery, ignoreCase = true) || it.category.contains(searchQuery, ignoreCase = true))
@@ -611,15 +613,31 @@ fun ProductosScreen(
                 )
             }
 
-            Button(
-                onClick = { showAddDialog = true },
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                modifier = Modifier.testTag("add_dish_button")
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Añadir")
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Añadir Platillo", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Button(
+                    onClick = { showAddDialog = true },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.testTag("add_dish_button")
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Añadir Platillo", modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Añadir Platillo", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                }
+
+                Button(
+                    onClick = { showAddCategoryDialog = true },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                    modifier = Modifier.testTag("add_category_button")
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Nueva Categoría", modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Nueva Categoría", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                }
             }
         }
 
@@ -650,10 +668,22 @@ fun ProductosScreen(
             items(categories.size) { idx ->
                 val cat = categories[idx]
                 val isSelected = cat == selectedCategory
+                val associatedCustomCat = customCategories.firstOrNull { it.name.equals(cat, ignoreCase = true) }
                 FilterChip(
                     selected = isSelected,
                     onClick = { selectedCategory = cat },
                     label = { Text(cat, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                    leadingIcon = {
+                        if (cat != "Todos") {
+                            CategoryIcon(
+                                base64 = associatedCustomCat?.iconBase64,
+                                fallbackText = cat,
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .clip(CircleShape)
+                            )
+                        }
+                    },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.secondary,
                         selectedLabelColor = MaterialTheme.colorScheme.onSecondary,
@@ -827,6 +857,35 @@ fun ProductosScreen(
         var dishCategoryText by remember { mutableStateOf("") }
         var dishStockText by remember { mutableStateOf("50") }
 
+        var dishImageBase64 by remember { mutableStateOf<String?>(null) }
+        var categoryIconBase64 by remember { mutableStateOf<String?>(null) }
+
+        val dishImagePickerLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.GetContent()
+        ) { uri: Uri? ->
+            if (uri != null) {
+                val b64 = uriToBase64(context, uri)
+                if (b64 != null) {
+                    dishImageBase64 = b64
+                } else {
+                    Toast.makeText(context, "Error al procesar la imagen del platillo", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        val categoryIconPickerLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.GetContent()
+        ) { uri: Uri? ->
+            if (uri != null) {
+                val b64 = uriToBase64(context, uri)
+                if (b64 != null) {
+                    categoryIconBase64 = b64
+                } else {
+                    Toast.makeText(context, "Error al procesar el icono de la categoría", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
         Dialog(onDismissRequest = { showAddDialog = false }) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
@@ -848,6 +907,97 @@ fun ProductosScreen(
                         color = MaterialTheme.colorScheme.primary
                     )
 
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Dish Image Box
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                "Foto Platillo",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .clickable { dishImagePickerLauncher.launch("image/*") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (dishImageBase64 != null) {
+                                    val bitmap = remember(dishImageBase64) {
+                                        try {
+                                            val decodedString = Base64.decode(dishImageBase64, Base64.DEFAULT)
+                                            BitmapFactory.decodeByteArray(decodedString, 0, decodedString.size)
+                                        } catch (t: Throwable) { null }
+                                    }
+                                    if (bitmap != null) {
+                                        Image(
+                                            bitmap = bitmap.asImageBitmap(),
+                                            contentDescription = "Platillo",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Icon(Icons.Default.Add, contentDescription = "Subir", modifier = Modifier.size(20.dp))
+                                    }
+                                } else {
+                                    Icon(Icons.Default.Add, contentDescription = "Subir", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+
+                        // Category Icon Box
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                "Foto Categoría",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .clickable { categoryIconPickerLauncher.launch("image/*") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (categoryIconBase64 != null) {
+                                    val bitmap = remember(categoryIconBase64) {
+                                        try {
+                                            val decodedString = Base64.decode(categoryIconBase64, Base64.DEFAULT)
+                                            BitmapFactory.decodeByteArray(decodedString, 0, decodedString.size)
+                                        } catch (t: Throwable) { null }
+                                    }
+                                    if (bitmap != null) {
+                                        Image(
+                                            bitmap = bitmap.asImageBitmap(),
+                                            contentDescription = "Categoría",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Icon(Icons.Default.Add, contentDescription = "Subir", modifier = Modifier.size(20.dp))
+                                    }
+                                } else {
+                                    Icon(Icons.Default.Add, contentDescription = "Subir", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+
                     OutlinedTextField(
                         value = dishName,
                         onValueChange = { dishName = it },
@@ -861,6 +1011,37 @@ fun ProductosScreen(
                         label = { Text("Categoría (ej: Hamburguesas, Bebidas)") },
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    // Quick category suggestions chips row
+                    Text(
+                        "Categorías existentes:",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    )
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        val suggestionList = (dishes.map { it.category } + customCategories.map { it.name }).distinct().filter { it.isNotBlank() }
+                        items(suggestionList.size) { i ->
+                            val sCat = suggestionList[i]
+                            val isChosen = sCat.equals(dishCategoryText, ignoreCase = true)
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isChosen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.clickable { dishCategoryText = sCat }
+                            ) {
+                                Text(
+                                    text = sCat,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isChosen) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
 
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -910,12 +1091,17 @@ fun ProductosScreen(
                                 val c = dishCostText.toDoubleOrNull() ?: 0.0
                                 val stk = dishStockText.toIntOrNull() ?: 30
                                 if (dishName.isNotBlank() && dishCategoryText.isNotBlank()) {
+                                    // Save custom category icon if uploaded
+                                    if (categoryIconBase64 != null) {
+                                        viewModel.addCustomCategory(dishCategoryText.trim(), categoryIconBase64)
+                                    }
                                     viewModel.addDish(
                                         name = dishName.trim(),
                                         price = p,
                                         cost = c,
                                         category = dishCategoryText.trim(),
-                                        initialStock = stk
+                                        initialStock = stk,
+                                        imageBase64 = dishImageBase64
                                     )
                                     showAddDialog = false
                                     Toast.makeText(context, "Creado con éxito", Toast.LENGTH_SHORT).show()
@@ -943,6 +1129,35 @@ fun ProductosScreen(
         var dishCategoryText by remember { mutableStateOf(editingDish.category) }
         var dishStockText by remember { mutableStateOf(editingDish.dailyStock.toString()) }
 
+        var dishImageBase64 by remember { mutableStateOf<String?>(editingDish.imageBase64) }
+        var categoryIconBase64 by remember { mutableStateOf<String?>(null) }
+
+        val dishImagePickerLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.GetContent()
+        ) { uri: Uri? ->
+            if (uri != null) {
+                val b64 = uriToBase64(context, uri)
+                if (b64 != null) {
+                    dishImageBase64 = b64
+                } else {
+                    Toast.makeText(context, "Error al procesar la imagen del platillo", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        val categoryIconPickerLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.GetContent()
+        ) { uri: Uri? ->
+            if (uri != null) {
+                val b64 = uriToBase64(context, uri)
+                if (b64 != null) {
+                    categoryIconBase64 = b64
+                } else {
+                    Toast.makeText(context, "Error al procesar el icono de la categoría", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
         Dialog(onDismissRequest = { showEditDialog = null }) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
@@ -964,6 +1179,97 @@ fun ProductosScreen(
                         color = MaterialTheme.colorScheme.primary
                     )
 
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Dish Image Box
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                "Foto Platillo",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .clickable { dishImagePickerLauncher.launch("image/*") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (dishImageBase64 != null) {
+                                    val bitmap = remember(dishImageBase64) {
+                                        try {
+                                            val decodedString = Base64.decode(dishImageBase64, Base64.DEFAULT)
+                                            BitmapFactory.decodeByteArray(decodedString, 0, decodedString.size)
+                                        } catch (t: Throwable) { null }
+                                    }
+                                    if (bitmap != null) {
+                                        Image(
+                                            bitmap = bitmap.asImageBitmap(),
+                                            contentDescription = "Platillo",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Icon(Icons.Default.Add, contentDescription = "Subir", modifier = Modifier.size(20.dp))
+                                    }
+                                } else {
+                                    Icon(Icons.Default.Add, contentDescription = "Subir", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+
+                        // Category Icon Box
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                "Foto Categoría",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .clickable { categoryIconPickerLauncher.launch("image/*") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (categoryIconBase64 != null) {
+                                    val bitmap = remember(categoryIconBase64) {
+                                        try {
+                                            val decodedString = Base64.decode(categoryIconBase64, Base64.DEFAULT)
+                                            BitmapFactory.decodeByteArray(decodedString, 0, decodedString.size)
+                                        } catch (t: Throwable) { null }
+                                    }
+                                    if (bitmap != null) {
+                                        Image(
+                                            bitmap = bitmap.asImageBitmap(),
+                                            contentDescription = "Categoría",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Icon(Icons.Default.Add, contentDescription = "Subir", modifier = Modifier.size(20.dp))
+                                    }
+                                } else {
+                                    Icon(Icons.Default.Add, contentDescription = "Subir", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+
                     OutlinedTextField(
                         value = dishName,
                         onValueChange = { dishName = it },
@@ -977,6 +1283,37 @@ fun ProductosScreen(
                         label = { Text("Categoría") },
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    // Quick category suggestions chips row
+                    Text(
+                        "Categorías de reemplazo:",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    )
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        val suggestionList = (dishes.map { it.category } + customCategories.map { it.name }).distinct().filter { it.isNotBlank() }
+                        items(suggestionList.size) { i ->
+                            val sCat = suggestionList[i]
+                            val isChosen = sCat.equals(dishCategoryText, ignoreCase = true)
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isChosen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.clickable { dishCategoryText = sCat }
+                            ) {
+                                Text(
+                                    text = sCat,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isChosen) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
 
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1026,13 +1363,18 @@ fun ProductosScreen(
                                 val c = dishCostText.toDoubleOrNull() ?: editingDish.cost
                                 val stk = dishStockText.toIntOrNull() ?: editingDish.dailyStock
                                 if (dishName.isNotBlank() && dishCategoryText.isNotBlank()) {
+                                    // Save custom category icon if uploaded
+                                    if (categoryIconBase64 != null) {
+                                        viewModel.addCustomCategory(dishCategoryText.trim(), categoryIconBase64)
+                                    }
                                     val updated = editingDish.copy(
                                         name = dishName.trim(),
                                         price = p,
                                         cost = c,
                                         category = dishCategoryText.trim(),
                                         dailyStock = stk,
-                                        initialDailyStock = if (stk > editingDish.initialDailyStock) stk else editingDish.initialDailyStock
+                                        initialDailyStock = if (stk > editingDish.initialDailyStock) stk else editingDish.initialDailyStock,
+                                        imageBase64 = dishImageBase64
                                     )
                                     viewModel.updateDish(updated)
                                     showEditDialog = null
@@ -1044,6 +1386,130 @@ fun ProductosScreen(
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("Actualizar", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showAddCategoryDialog) {
+        var categoryNameInput by remember { mutableStateOf("") }
+        var categoryIconBase64 by remember { mutableStateOf<String?>(null) }
+        
+        val categoryIconPickerLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.GetContent()
+        ) { uri: Uri? ->
+            if (uri != null) {
+                val b64 = uriToBase64(context, uri)
+                if (b64 != null) {
+                    categoryIconBase64 = b64
+                } else {
+                    Toast.makeText(context, "No se pudo procesar la imagen", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        Dialog(onDismissRequest = { showAddCategoryDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(18.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        "Crear Categoría Personalizada",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        "Icono de la Categoría",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .clickable { categoryIconPickerLauncher.launch("image/*") }
+                            .align(Alignment.CenterHorizontally),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (categoryIconBase64 != null) {
+                            val bitmap = remember(categoryIconBase64) {
+                                try {
+                                    val decodedString = Base64.decode(categoryIconBase64, Base64.DEFAULT)
+                                    BitmapFactory.decodeByteArray(decodedString, 0, decodedString.size)
+                                } catch (t: Throwable) {
+                                    null
+                                }
+                            }
+                            if (bitmap != null) {
+                                Image(
+                                    bitmap = bitmap.asImageBitmap(),
+                                    contentDescription = "Icono",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Icon(Icons.Default.Add, contentDescription = "Subir", modifier = Modifier.size(20.dp))
+                            }
+                        } else {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.Add, contentDescription = "Subir foto", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("Subir JPG/PNG", fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = categoryNameInput,
+                        onValueChange = { categoryNameInput = it },
+                        label = { Text("Nombre de la Categoría") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        TextButton(
+                            onClick = { showAddCategoryDialog = false },
+                            modifier = Modifier.weight(1.1f)
+                        ) {
+                            Text("Cancelar", fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                if (categoryNameInput.isNotBlank()) {
+                                    viewModel.addCustomCategory(categoryNameInput.trim(), categoryIconBase64)
+                                    showAddCategoryDialog = false
+                                    Toast.makeText(context, "Categoría creada con éxito", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "El nombre de categoría es obligatorio", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Guardar", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -1131,6 +1597,42 @@ fun ProductImage(
             Text(fallbackEmoji, fontSize = 20.sp)
         }
     }
+}
+
+@Composable
+fun CategoryIcon(
+    base64: String?,
+    fallbackText: String,
+    modifier: Modifier = Modifier
+) {
+    if (!base64.isNullOrBlank()) {
+        val bitmap = remember(base64) {
+            try {
+                val decodedString = Base64.decode(base64, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(decodedString, 0, decodedString.size)
+            } catch (t: Throwable) {
+                null
+            }
+        }
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "Icono Categoría",
+                modifier = modifier,
+                contentScale = ContentScale.Crop
+            )
+            return
+        }
+    }
+    val emoji = when {
+        fallbackText.contains("hamburguesa", ignoreCase = true) || fallbackText.contains("burger", ignoreCase = true) -> "🍔"
+        fallbackText.contains("pizza", ignoreCase = true) -> "🍕"
+        fallbackText.contains("taco", ignoreCase = true) -> "🌮"
+        fallbackText.contains("bebida", ignoreCase = true) || fallbackText.contains("drink", ignoreCase = true) || fallbackText.contains("jugo", ignoreCase = true) -> "🍹"
+        fallbackText.contains("postre", ignoreCase = true) || fallbackText.contains("pastel", ignoreCase = true) -> "🍰"
+        else -> "🍽️"
+    }
+    Text(emoji, fontSize = 14.sp)
 }
 
 fun getDishEmoji(dish: Dish): String {
@@ -1314,6 +1816,7 @@ fun SalesTab(
     cart: Map<Int, RestaurantViewModel.CartItem>,
     onBack: () -> Unit
 ) {
+    val customCategories by viewModel.customCategories.collectAsStateWithLifecycle()
     var selectedCategory by remember { mutableStateOf("Todos") }
     var searchQuery by remember { mutableStateOf("") }
     var showCheckoutDialog by remember { mutableStateOf(false) }
@@ -1321,7 +1824,7 @@ fun SalesTab(
     var receiptItemsToPrint by remember { mutableStateOf<List<OrderItem>>(emptyList()) }
     var showReceiptEditOrderDialog by remember { mutableStateOf<Order?>(null) }
 
-    val categories = listOf("Todos") + dishes.map { it.category }.distinct().sorted()
+    val categories = listOf("Todos") + (dishes.map { it.category } + customCategories.map { it.name }).distinct().sorted()
     val filteredDishes = dishes.filter {
         (selectedCategory == "Todos" || it.category == selectedCategory) &&
         (it.name.contains(searchQuery, ignoreCase = true) || it.category.contains(searchQuery, ignoreCase = true))
@@ -1413,10 +1916,22 @@ fun SalesTab(
                         items(categories.size) { index ->
                             val cat = categories[index]
                             val isSelected = cat == selectedCategory
+                            val associatedCustomCat = customCategories.firstOrNull { it.name.equals(cat, ignoreCase = true) }
                             FilterChip(
                                 selected = isSelected,
                                 onClick = { selectedCategory = cat },
                                 label = { Text(cat, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                                leadingIcon = {
+                                    if (cat != "Todos") {
+                                        CategoryIcon(
+                                            base64 = associatedCustomCat?.iconBase64,
+                                            fallbackText = cat,
+                                            modifier = Modifier
+                                                .size(18.dp)
+                                                .clip(CircleShape)
+                                        )
+                                    }
+                                },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = MaterialTheme.colorScheme.primary,
                                     selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
@@ -1781,10 +2296,22 @@ fun SalesTab(
                 items(categories.size) { index ->
                     val cat = categories[index]
                     val isSelected = cat == selectedCategory
+                    val associatedCustomCat = customCategories.firstOrNull { it.name.equals(cat, ignoreCase = true) }
                     FilterChip(
                         selected = isSelected,
                         onClick = { selectedCategory = cat },
                         label = { Text(cat, fontWeight = FontWeight.SemiBold) },
+                        leadingIcon = {
+                            if (cat != "Todos") {
+                                CategoryIcon(
+                                    base64 = associatedCustomCat?.iconBase64,
+                                    fallbackText = cat,
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .clip(CircleShape)
+                                )
+                            }
+                        },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primary,
                             selectedLabelColor = MaterialTheme.colorScheme.onPrimary,

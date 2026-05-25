@@ -138,4 +138,15 @@ class RestaurantRepository(private val dao: RestaurantDao) {
         
         return allItems.filter { it.orderId in allOrdersUnderClosure }
     }
+
+    // --- Custom Categories ---
+    val allCustomCategories: Flow<List<CustomCategory>> = dao.getAllCustomCategories()
+
+    suspend fun insertCustomCategory(category: CustomCategory) {
+        dao.insertCustomCategory(category)
+    }
+
+    suspend fun deleteCustomCategory(category: CustomCategory) {
+        dao.deleteCustomCategory(category)
+    }
 }

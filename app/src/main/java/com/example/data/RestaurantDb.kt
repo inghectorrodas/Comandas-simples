@@ -19,6 +19,12 @@ data class Dish(
     val imageBase64: String? = null
 )
 
+@Entity(tableName = "custom_categories")
+data class CustomCategory(
+    @PrimaryKey val name: String,
+    val iconBase64: String? = null
+)
+
 @Entity(tableName = "orders")
 data class Order(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
@@ -99,6 +105,16 @@ interface RestaurantDao {
     @Query("UPDATE dishes SET dailyStock = :stock, initialDailyStock = :stock WHERE id = :id")
     suspend fun resetDishStock(id: Int, stock: Int)
 
+    // --- Custom Categories ---
+    @Query("SELECT * FROM custom_categories ORDER BY name ASC")
+    fun getAllCustomCategories(): Flow<List<CustomCategory>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCustomCategory(category: CustomCategory)
+
+    @Delete
+    suspend fun deleteCustomCategory(category: CustomCategory)
+
     // --- Orders ---
     @Query("SELECT * FROM orders ORDER BY timestamp DESC")
     fun getAllOrders(): Flow<List<Order>>
@@ -157,8 +173,8 @@ interface RestaurantDao {
 // ==========================================
 
 @Database(
-    entities = [Dish::class, Order::class, OrderItem::class, Purchase::class, CashClosure::class],
-    version = 3,
+    entities = [Dish::class, Order::class, OrderItem::class, Purchase::class, CashClosure::class, CustomCategory::class],
+    version = 4,
     exportSchema = false
 )
 abstract class RestaurantDatabase : RoomDatabase() {
