@@ -5096,6 +5096,154 @@ fun CierresTab(
                         }
                     }
                 }
+
+                // PDF, WhatsApp & Email Reports Row for active session
+                Spacer(modifier = Modifier.height(16.dp))
+                Divider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                Spacer(modifier = Modifier.height(10.dp))
+                
+                Text(
+                    text = "Exportar Reporte de Turno Activo (PDF):",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val rName by viewModel.restaurantName.collectAsStateWithLifecycle()
+                    val rAddress by viewModel.restaurantAddress.collectAsStateWithLifecycle()
+                    val rPhone by viewModel.restaurantPhone.collectAsStateWithLifecycle()
+                    val rLogoBase64 by viewModel.restaurantLogoBase64.collectAsStateWithLifecycle()
+
+                    Button(
+                        onClick = {
+                            val paymentsMap = activeOrders.groupBy { it.paymentMethod }
+                                .mapValues { it.value.sumOf { o -> o.totalAmount } }
+                            val orderTypesMap = activeOrders.groupBy {
+                                when {
+                                    it.isDelivery -> "DOMICILIO"
+                                    it.tableNumber == "Para Llevar" -> "LLEVAR"
+                                    else -> "COMER_AQUI"
+                                }
+                            }.mapValues { it.value.size }
+
+                            val dateStr = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+                            val file = PdfReportHelper.generateClosureReport(
+                                context = context,
+                                restaurantName = rName,
+                                restaurantAddress = rAddress,
+                                restaurantPhone = rPhone,
+                                restaurantLogoBase64 = rLogoBase64,
+                                reportTitle = "REPORTE DE PRE-CIERRE DE CAJA (CORTE PARCIAL)",
+                                dateRange = dateStr,
+                                ordersCount = openOrderCount,
+                                totalSales = openSalesSum,
+                                totalCost = openCostSum,
+                                paymentsBreakdown = paymentsMap,
+                                orderTypesBreakdown = orderTypesMap,
+                                productStats = openStats
+                            )
+                            if (file != null) {
+                                PdfReportHelper.shareDocument(context, file, "Pre-Cierre de Caja ($dateStr)")
+                            } else {
+                                Toast.makeText(context, "No se pudo generar el PDF", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f).testTag("share_active_pdf_button")
+                    ) {
+                        Icon(imageVector = Icons.Default.Share, contentDescription = "PDF", modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Compartir", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = {
+                            val paymentsMap = activeOrders.groupBy { it.paymentMethod }
+                                .mapValues { it.value.sumOf { o -> o.totalAmount } }
+                            val orderTypesMap = activeOrders.groupBy {
+                                when {
+                                    it.isDelivery -> "DOMICILIO"
+                                    it.tableNumber == "Para Llevar" -> "LLEVAR"
+                                    else -> "COMER_AQUI"
+                                }
+                            }.mapValues { it.value.size }
+
+                            val dateStr = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+                            val file = PdfReportHelper.generateClosureReport(
+                                context = context,
+                                restaurantName = rName,
+                                restaurantAddress = rAddress,
+                                restaurantPhone = rPhone,
+                                restaurantLogoBase64 = rLogoBase64,
+                                reportTitle = "REPORTE DE PRE-CIERRE DE CAJA (CORTE PARCIAL)",
+                                dateRange = dateStr,
+                                ordersCount = openOrderCount,
+                                totalSales = openSalesSum,
+                                totalCost = openCostSum,
+                                paymentsBreakdown = paymentsMap,
+                                orderTypesBreakdown = orderTypesMap,
+                                productStats = openStats
+                            )
+                            if (file != null) {
+                                PdfReportHelper.shareToWhatsApp(context, file, "Pre-Cierre ($dateStr)")
+                            } else {
+                                Toast.makeText(context, "No se pudo generar el PDF", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)), // WhatsApp Green
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f).testTag("whatsapp_active_pdf_button")
+                    ) {
+                        Text("WhatsApp", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+
+                    Button(
+                        onClick = {
+                            val paymentsMap = activeOrders.groupBy { it.paymentMethod }
+                                .mapValues { it.value.sumOf { o -> o.totalAmount } }
+                            val orderTypesMap = activeOrders.groupBy {
+                                when {
+                                    it.isDelivery -> "DOMICILIO"
+                                    it.tableNumber == "Para Llevar" -> "LLEVAR"
+                                    else -> "COMER_AQUI"
+                                }
+                            }.mapValues { it.value.size }
+
+                            val dateStr = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date())
+                            val file = PdfReportHelper.generateClosureReport(
+                                context = context,
+                                restaurantName = rName,
+                                restaurantAddress = rAddress,
+                                restaurantPhone = rPhone,
+                                restaurantLogoBase64 = rLogoBase64,
+                                reportTitle = "REPORTE DE PRE-CIERRE DE CAJA (CORTE PARCIAL)",
+                                dateRange = dateStr,
+                                ordersCount = openOrderCount,
+                                totalSales = openSalesSum,
+                                totalCost = openCostSum,
+                                paymentsBreakdown = paymentsMap,
+                                orderTypesBreakdown = orderTypesMap,
+                                productStats = openStats
+                            )
+                            if (file != null) {
+                                PdfReportHelper.shareToEmail(context, file, "Pre-Cierre ($dateStr)")
+                            } else {
+                                Toast.makeText(context, "No se pudo generar el PDF", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE15C42)), // Red/Coral for Email
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f).testTag("email_active_pdf_button")
+                    ) {
+                        Text("Correo", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
             }
         }
 
@@ -5211,6 +5359,143 @@ fun CierresTab(
                                         Text("${rank + 1}. ${pStat.name} (${pStat.quantitySold} uds)", fontSize = 12.sp)
                                         Text("Ganancia: ${pStat.profit.formatPrice()}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
                                     }
+                                }
+                            }
+
+                            // PDF Actions for selected historical closure
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Divider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text("Compartir Reporte de Caja en PDF:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        val closureOrders = viewModel.allOrders.value.filter { it.closureId == closure.id }
+                                        val paymentsMap = closureOrders.groupBy { it.paymentMethod }
+                                            .mapValues { it.value.sumOf { o -> o.totalAmount } }
+                                        val orderTypesMap = closureOrders.groupBy {
+                                            when {
+                                                it.isDelivery -> "DOMICILIO"
+                                                it.tableNumber == "Para Llevar" -> "LLEVAR"
+                                                else -> "COMER_AQUI"
+                                            }
+                                        }.mapValues { it.value.size }
+
+                                        val file = PdfReportHelper.generateClosureReport(
+                                            context = context,
+                                            restaurantName = viewModel.restaurantName.value,
+                                            restaurantAddress = viewModel.restaurantAddress.value,
+                                            restaurantPhone = viewModel.restaurantPhone.value,
+                                            restaurantLogoBase64 = viewModel.restaurantLogoBase64.value,
+                                            reportTitle = "REPORTE DE CIERRE DE CAJA #${closure.id}",
+                                            dateRange = closure.dateString,
+                                            ordersCount = closure.totalOrdersCount,
+                                            totalSales = closure.totalSales,
+                                            totalCost = closure.totalCost,
+                                            paymentsBreakdown = paymentsMap,
+                                            orderTypesBreakdown = orderTypesMap,
+                                            productStats = stats
+                                        )
+                                        if (file != null) {
+                                            PdfReportHelper.shareDocument(context, file, "Cierre de Caja #${closure.id}")
+                                        } else {
+                                            Toast.makeText(context, "No se pudo generar el PDF", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.weight(1f).testTag("share_closure_pdf_button")
+                                ) {
+                                    Icon(imageVector = Icons.Default.Share, contentDescription = "PDF", modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Compartir", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                Button(
+                                    onClick = {
+                                        val closureOrders = viewModel.allOrders.value.filter { it.closureId == closure.id }
+                                        val paymentsMap = closureOrders.groupBy { it.paymentMethod }
+                                            .mapValues { it.value.sumOf { o -> o.totalAmount } }
+                                        val orderTypesMap = closureOrders.groupBy {
+                                            when {
+                                                it.isDelivery -> "DOMICILIO"
+                                                it.tableNumber == "Para Llevar" -> "LLEVAR"
+                                                else -> "COMER_AQUI"
+                                            }
+                                        }.mapValues { it.value.size }
+
+                                        val file = PdfReportHelper.generateClosureReport(
+                                            context = context,
+                                            restaurantName = viewModel.restaurantName.value,
+                                            restaurantAddress = viewModel.restaurantAddress.value,
+                                            restaurantPhone = viewModel.restaurantPhone.value,
+                                            restaurantLogoBase64 = viewModel.restaurantLogoBase64.value,
+                                            reportTitle = "REPORTE DE CIERRE DE CAJA #${closure.id}",
+                                            dateRange = closure.dateString,
+                                            ordersCount = closure.totalOrdersCount,
+                                            totalSales = closure.totalSales,
+                                            totalCost = closure.totalCost,
+                                            paymentsBreakdown = paymentsMap,
+                                            orderTypesBreakdown = orderTypesMap,
+                                            productStats = stats
+                                        )
+                                        if (file != null) {
+                                            PdfReportHelper.shareToWhatsApp(context, file, "Cierre #${closure.id}")
+                                        } else {
+                                            Toast.makeText(context, "No se pudo generar el PDF", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.weight(1f).testTag("whatsapp_closure_pdf_button")
+                                ) {
+                                    Text("WhatsApp", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+
+                                Button(
+                                    onClick = {
+                                        val closureOrders = viewModel.allOrders.value.filter { it.closureId == closure.id }
+                                        val paymentsMap = closureOrders.groupBy { it.paymentMethod }
+                                            .mapValues { it.value.sumOf { o -> o.totalAmount } }
+                                        val orderTypesMap = closureOrders.groupBy {
+                                            when {
+                                                it.isDelivery -> "DOMICILIO"
+                                                it.tableNumber == "Para Llevar" -> "LLEVAR"
+                                                else -> "COMER_AQUI"
+                                            }
+                                        }.mapValues { it.value.size }
+
+                                        val file = PdfReportHelper.generateClosureReport(
+                                            context = context,
+                                            restaurantName = viewModel.restaurantName.value,
+                                            restaurantAddress = viewModel.restaurantAddress.value,
+                                            restaurantPhone = viewModel.restaurantPhone.value,
+                                            restaurantLogoBase64 = viewModel.restaurantLogoBase64.value,
+                                            reportTitle = "REPORTE DE CIERRE DE CAJA #${closure.id}",
+                                            dateRange = closure.dateString,
+                                            ordersCount = closure.totalOrdersCount,
+                                            totalSales = closure.totalSales,
+                                            totalCost = closure.totalCost,
+                                            paymentsBreakdown = paymentsMap,
+                                            orderTypesBreakdown = orderTypesMap,
+                                            productStats = stats
+                                        )
+                                        if (file != null) {
+                                            PdfReportHelper.shareToEmail(context, file, "Cierre #${closure.id}")
+                                        } else {
+                                            Toast.makeText(context, "No se pudo generar el PDF", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE15C42)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.weight(1f).testTag("email_closure_pdf_button")
+                                ) {
+                                    Text("Correo", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                 }
                             }
                         }
