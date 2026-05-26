@@ -2831,6 +2831,9 @@ fun SalesTab(
 
         var localPaymentMethod by remember { mutableStateOf("Efectivo") }
         var localAmountReceivedText by remember { mutableStateOf("") }
+        var localOrderStatusType by remember(activeOrderType) {
+            mutableStateOf(if (activeOrderType == "LLEVAR") "ENTREGADA" else "PENDIENTE")
+        }
         val receivedAmount = localAmountReceivedText.toDoubleOrNull() ?: 0.0
         val change = if (receivedAmount >= totalCartPrice) receivedAmount - totalCartPrice else 0.0
 
@@ -2946,6 +2949,36 @@ fun SalesTab(
                                         localAmountReceivedText = ""
                                     }
                                 },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(vertical = 12.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(emoji, fontSize = 20.sp)
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Destino / Estado Inicial de la Orden", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            Triple("PENDIENTE", "Comanda (A Cocina)", "🍳"),
+                            Triple("ENTREGADA", "Entregada (Finalizada)", "✅")
+                        ).forEach { (statusId, label, emoji) ->
+                            val isSelected = localOrderStatusType == statusId
+                            Surface(
+                                onClick = { localOrderStatusType = statusId },
                                 shape = RoundedCornerShape(12.dp),
                                 color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                 border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent),
@@ -3100,7 +3133,14 @@ fun SalesTab(
                                     viewModel.checkoutAmountReceived.value = if (localPaymentMethod == "Efectivo") receivedAmount else 0.0
                                     viewModel.checkoutChangeGiven.value = if (localPaymentMethod == "Efectivo") change else 0.0
 
-                                    viewModel.checkoutCart { createdOrder ->
+                                    // Compute final Room Order status
+                                    val finalStatusString = if (localOrderStatusType == "PENDIENTE") {
+                                        if (activeOrderType == "DOMICILIO") "DELIVERY" else "PENDING"
+                                    } else {
+                                        if (activeOrderType == "DOMICILIO") "DELIVERED" else "COMPLETED"
+                                    }
+
+                                    viewModel.checkoutCart(customStatus = finalStatusString) { createdOrder ->
                                         showCheckoutDialog = false
                                         viewModel.loadOrderItems(createdOrder.id) { orderedItems ->
                                             receiptToPrint = createdOrder
@@ -3279,29 +3319,83 @@ fun SalesTab(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                    Row(
+                    Text(
+                        text = "OPCIONES DE DOCUMENTO / FACTURA",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.align(Alignment.Start)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // PRINT & PDF DOCUMENT ROW
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        TextButton(
-                            onClick = { receiptToPrint = null },
-                            modifier = Modifier.weight(1f)
+                        // PDF SHARE BUTTONS
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("Cerrar", fontWeight = FontWeight.Bold)
+                            // 1. Android PDF share
+                            OutlinedButton(
+                                onClick = {
+                                    val file = PdfReportHelper.generateInvoicePdf(
+                                        contextPrompt,
+                                        restaurantName,
+                                        restaurantAddress,
+                                        restaurantPhone,
+                                        restaurantLogoBase64,
+                                        rOrder,
+                                        receiptItemsToPrint
+                                    )
+                                    if (file != null) {
+                                        PdfReportHelper.shareDocument(contextPrompt, file, "Factura #${rOrder.id}")
+                                    } else {
+                                        Toast.makeText(contextPrompt, "No se pudo generar el PDF", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.weight(1f).testTag("dialog_share_pdf_button")
+                            ) {
+                                Icon(Icons.Default.Share, contentDescription = "Compartir PDF", modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Compartir PDF", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            // 2. WhatsApp PDF Share
+                            Button(
+                                onClick = {
+                                    val file = PdfReportHelper.generateInvoicePdf(
+                                        contextPrompt,
+                                        restaurantName,
+                                        restaurantAddress,
+                                        restaurantPhone,
+                                        restaurantLogoBase64,
+                                        rOrder,
+                                        receiptItemsToPrint
+                                    )
+                                    if (file != null) {
+                                        PdfReportHelper.shareToWhatsApp(contextPrompt, file, "Factura #${rOrder.id}")
+                                    } else {
+                                        Toast.makeText(contextPrompt, "No se pudo generar el PDF", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.weight(1f).testTag("dialog_whatsapp_pdf_button")
+                            ) {
+                                Icon(Icons.Default.Send, contentDescription = "WhatsApp PDF", modifier = Modifier.size(16.dp), tint = Color.White)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Vía WhatsApp", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
                         }
 
-                        OutlinedButton(
-                            onClick = { showReceiptEditOrderDialog = rOrder },
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Default.Edit, contentDescription = "Modificar", modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Editar", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        }
-
+                        // THERMAL PRINT BUTTON
                         Button(
                             onClick = {
                                 val htmlContent = generateReceiptHtml(
@@ -3317,11 +3411,38 @@ fun SalesTab(
                                 sendToThermalPrinter(contextPrompt, htmlContent)
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            modifier = Modifier.weight(1.3f)
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth().testTag("dialog_print_ticket_button")
                         ) {
-                            Icon(Icons.Default.Share, contentDescription = "Imprimir")
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Imprimir Tkt", fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.Check, contentDescription = "Imprimir", modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Imprimir Factura (Ticket Física)", fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+                    // BOTTOM BUTTONS (Cerrar & Editar)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TextButton(
+                            onClick = { receiptToPrint = null },
+                            modifier = Modifier.weight(1f).testTag("dialog_close_invoice_button")
+                        ) {
+                            Text("Cerrar", fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = { showReceiptEditOrderDialog = rOrder },
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                            modifier = Modifier.weight(1f).testTag("dialog_edit_invoice_button")
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = "Modificar", modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Editar Orden", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
                         }
                     }
                 }

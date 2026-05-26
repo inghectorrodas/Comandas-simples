@@ -237,7 +237,7 @@ class RestaurantViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     // --- Check Out (Venta) ---
-    fun checkoutCart(onSuccess: (Order) -> Unit) {
+    fun checkoutCart(customStatus: String? = null, onSuccess: (Order) -> Unit) {
         viewModelScope.launch {
             val itemsInCart = _cart.value.values.toList()
             if (itemsInCart.isEmpty()) return@launch
@@ -256,7 +256,7 @@ class RestaurantViewModel(application: Application) : AndroidViewModel(applicati
 
             // Create initial Order status:
             // "PENDING" for Eat-In (Comer Aquí), "DELIVERY" for active Delivery (Domicilio), "COMPLETED" for To-Go (Llevar, immediate sale)
-            val status = when (orderType) {
+            val status = customStatus ?: when (orderType) {
                 "COMER_AQUI" -> "PENDING"
                 "DOMICILIO" -> "DELIVERY"
                 else -> "COMPLETED"

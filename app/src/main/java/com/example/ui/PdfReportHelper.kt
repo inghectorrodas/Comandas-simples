@@ -443,4 +443,271 @@ object PdfReportHelper {
             shareDocument(context, file, subject)
         }
     }
+
+    /**
+     * Generates a beautifully formatted PDF invoice/receipt for a specific order
+     * and saves it to the app's cache directory.
+     */
+    fun generateInvoicePdf(
+        context: Context,
+        restaurantName: String,
+        restaurantAddress: String,
+        restaurantPhone: String,
+        restaurantLogoBase64: String?,
+        order: com.example.data.Order,
+        items: List<com.example.data.OrderItem>
+    ): File? {
+        val pdfDocument = PdfDocument()
+        
+        // Setup paint configurations
+        val paintText = Paint().apply {
+            color = Color.BLACK
+            textSize = 10f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            isAntiAlias = true
+        }
+        val paintSecondaryText = Paint().apply {
+            color = Color.rgb(100, 116, 139) // Slate Gray
+            textSize = 9f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            isAntiAlias = true
+        }
+        val paintBoldText = Paint().apply {
+            color = Color.rgb(15, 23, 42) // Slate Dark
+            textSize = 10f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+        val paintTitle = Paint().apply {
+            color = Color.WHITE
+            textSize = 18f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+        val paintSubtitle = Paint().apply {
+            color = Color.WHITE
+            textSize = 9f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            isAntiAlias = true
+        }
+        val paintSectionHeading = Paint().apply {
+            color = Color.rgb(198, 40, 40) // Crimson red
+            textSize = 14f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        // We only need 1 page for standard invoice
+        val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 Size
+        val page = pdfDocument.startPage(pageInfo)
+        val canvas = page.canvas
+        var y = 25f
+
+        // Top red header banner (height 100)
+        val bannerPaint = Paint().apply { color = Color.rgb(198, 40, 40) }
+        canvas.drawRect(0f, 0f, 595f, 100f, bannerPaint)
+
+        // Accent light banner under it
+        val bannerAccentPaint = Paint().apply { color = Color.rgb(245, 225, 200) } // beige accent line
+        canvas.drawRect(0f, 100f, 595f, 106f, bannerAccentPaint)
+
+        // Logo
+        var logoOffset = 40f
+        if (!restaurantLogoBase64.isNullOrBlank()) {
+            try {
+                val decoded = Base64.decode(restaurantLogoBase64, Base64.DEFAULT)
+                val bitmap = BitmapFactory.decodeByteArray(decoded, 0, decoded.size)
+                if (bitmap != null) {
+                    val scaled = Bitmap.createScaledBitmap(bitmap, 64, 64, true)
+                    canvas.drawBitmap(scaled, 35f, 18f, null)
+                    logoOffset = 115f
+                }
+            } catch (t: Throwable) {
+                // Ignore
+            }
+        }
+
+        // Title
+        canvas.drawText(restaurantName.uppercase(Locale.getDefault()), logoOffset, 42f, paintTitle)
+        canvas.drawText("Dirección: $restaurantAddress  |  Tel: $restaurantPhone", logoOffset, 62f, paintSubtitle)
+        canvas.drawText("Sabor y Gestión — Panes con Gallina Benítez", logoOffset, 77f, paintSubtitle)
+
+        y = 135f
+
+        // Title of document
+        canvas.drawText("FACTURA DE CONSUMO / COMPROBANTE", 40f, y, paintSectionHeading)
+        y += 24f
+
+        // Info box for Invoice Meta
+        val cardPaint = Paint().apply {
+            color = Color.rgb(248, 250, 252) // off-white
+            style = Paint.Style.FILL
+        }
+        val cardBorderPaint = Paint().apply {
+            color = Color.rgb(226, 232, 240) // light gray border
+            style = Paint.Style.STROKE
+            strokeWidth = 1f
+        }
+
+        canvas.drawRoundRect(40f, y, 555f, y + 80f, 8f, 8f, cardPaint)
+        canvas.drawRoundRect(40f, y, 555f, y + 80f, 8f, 8f, cardBorderPaint)
+
+        val formatDateTime = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+        val dateString = formatDateTime.format(Date(order.timestamp))
+
+        // Left column info
+        canvas.drawText("Factura N°: #${order.id}", 55f, y + 22f, paintBoldText)
+        canvas.drawText("Fecha: $dateString", 55f, y + 42f, paintText)
+        canvas.drawText("Cliente: ${order.customerName ?: "Mostrador"}", 55f, y + 62f, paintText)
+
+        // Right column info
+        val typeStr = if (order.isDelivery) "A Domicilio" else if (order.tableNumber != null) "Comer Aquí (${order.tableNumber})" else "Para Llevar"
+        val statusStr = when (order.status) {
+            "PENDING" -> "Pendiente en Cocina"
+            "DELIVERY" -> "En Reparto"
+            "DELIVERED" -> "Entregado / Finalizado"
+            "COMPLETED" -> "Completado"
+            else -> order.status
+        }
+        canvas.drawText("Modalidad: $typeStr", 300f, y + 22f, paintText)
+        canvas.drawText("Estado: $statusStr", 300f, y + 42f, paintBoldText)
+        canvas.drawText("Método de Pago: ${order.paymentMethod}", 300f, y + 62f, paintText)
+
+        y += 110f
+
+        // Product list title
+        canvas.drawText("DETALLE DE ARTÍCULOS", 40f, y, paintBoldText)
+        canvas.drawLine(40f, y + 4f, 555f, y + 4f, Paint().apply { color = Color.rgb(198, 40, 40); strokeWidth = 1f })
+        y += 20f
+
+        // Draw Table Header
+        val headerBgPaint = Paint().apply { color = Color.rgb(30, 41, 59) }
+        canvas.drawRect(40f, y, 555f, y + 22f, headerBgPaint)
+
+        val tableHeaderPaint = Paint().apply {
+            color = Color.WHITE
+            textSize = 9.5f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        canvas.drawText("Platillo / Producto", 48f, y + 15f, tableHeaderPaint)
+        canvas.drawText("Cantidad", 280f, y + 15f, tableHeaderPaint)
+        canvas.drawText("Precio Unitario", 370f, y + 15f, tableHeaderPaint)
+        canvas.drawText("Subtotal", 480f, y + 15f, tableHeaderPaint)
+        y += 22f
+
+        val rowEvenBg = Paint().apply { color = Color.rgb(248, 250, 252) }
+        val rowOddBg = Paint().apply { color = Color.WHITE }
+        val borderRowPaint = Paint().apply { color = Color.rgb(241, 245, 249); strokeWidth = 1f }
+
+        val rowTextPaint = Paint().apply {
+            color = Color.rgb(51, 65, 85)
+            textSize = 9.5f
+            isAntiAlias = true
+        }
+
+        items.forEachIndexed { idx, itm ->
+            val bg = if (idx % 2 == 0) rowEvenBg else rowOddBg
+            canvas.drawRect(40f, y, 555f, y + 20f, bg)
+            canvas.drawLine(40f, y + 20f, 555f, y + 20f, borderRowPaint)
+
+            canvas.drawText(itm.dishName, 48f, y + 13f, rowTextPaint)
+            canvas.drawText("x${itm.quantity}", 280f, y + 13f, rowTextPaint)
+            canvas.drawText(String.format(Locale.US, "$%.2f", itm.price), 370f, y + 13f, rowTextPaint)
+            canvas.drawText(String.format(Locale.US, "$%.2f", itm.price * itm.quantity), 480f, y + 13f, paintBoldText)
+
+            y += 20f
+        }
+
+        y += 15f
+
+        // Draw payment details card on the right
+        val summaryLeft = 320f
+        canvas.drawRoundRect(summaryLeft, y, 555f, y + 85f, 6f, 6f, cardPaint)
+        canvas.drawRoundRect(summaryLeft, y, 555f, y + 85f, 6f, 6f, cardBorderPaint)
+
+        val summaryHeading = Paint().apply {
+            color = Color.rgb(15, 23, 42)
+            textSize = 10f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        canvas.drawText("RESUMEN DE PAGO", summaryLeft + 12f, y + 18f, summaryHeading)
+        canvas.drawLine(summaryLeft + 12f, y + 22f, 543f, y + 22f, Paint().apply { color = Color.LTGRAY; strokeWidth = 1f })
+
+        canvas.drawText("Total a Pagar:", summaryLeft + 12f, y + 40f, paintText)
+        val paintTotalAmt = Paint().apply {
+            color = Color.rgb(198, 40, 40)
+            textSize = 11f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+        canvas.drawText(String.format(Locale.US, "$%.2f", order.totalAmount), 460f, y + 40f, paintTotalAmt)
+
+        if (order.paymentMethod == "Efectivo") {
+            canvas.drawText("Recibido:", summaryLeft + 12f, y + 58f, paintText)
+            canvas.drawText(String.format(Locale.US, "$%.2f", order.amountReceived), 460f, y + 58f, paintText)
+            
+            canvas.drawText("Cambio:", summaryLeft + 12f, y + 74f, paintText)
+            val paintChangeGreen = Paint().apply {
+                color = Color.rgb(46, 125, 50)
+                textSize = 9.5f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                isAntiAlias = true
+            }
+            canvas.drawText(String.format(Locale.US, "$%.2f", order.changeGiven), 460f, y + 74f, paintChangeGreen)
+        } else {
+            canvas.drawText("Transacción:", summaryLeft + 12f, y + 58f, paintText)
+            canvas.drawText("Aprobada", 460f, y + 58f, Paint().apply {
+                color = Color.rgb(46, 125, 50)
+                textSize = 9.5f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                isAntiAlias = true
+            })
+        }
+
+        y += 115f
+
+        // Draw note or footer
+        canvas.drawRoundRect(40f, y, 555f, y + 45f, 6f, 6f, cardPaint)
+        canvas.drawRoundRect(40f, y, 555f, y + 45f, 6f, 6f, cardBorderPaint)
+
+        val noteTextPaint = Paint().apply {
+            color = Color.rgb(71, 85, 105)
+            textSize = 8.5f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
+            isAntiAlias = true
+        }
+        canvas.drawText("¡MUCHAS GRACIAS POR PREFERIR PANES CON GALLINA BENÍTEZ!", 55f, y + 18f, Paint(noteTextPaint).apply { typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) })
+        canvas.drawText("Este comprobante constituye una constancia de consumo interno generada digitalmente de forma segura.", 55f, y + 32f, noteTextPaint)
+
+        // Bottom footer line
+        val paintFoot = Paint().apply {
+            color = Color.rgb(100, 116, 139)
+            textSize = 8f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
+            isAntiAlias = true
+        }
+        canvas.drawLine(40f, 800f, 555f, 800f, Paint().apply { color = Color.LTGRAY; strokeWidth = 1f })
+        canvas.drawText("Sabor y Gestión • Comprobante de Venta PDF oficial generado en tiempo real.", 40f, 814f, paintFoot)
+
+        pdfDocument.finishPage(page)
+
+        // Write to cache file
+        return try {
+            val reportFile = File(context.cacheDir, "factura_pedido_${order.id}_${System.currentTimeMillis()}.pdf")
+            val outputStream = FileOutputStream(reportFile)
+            pdfDocument.writeTo(outputStream)
+            outputStream.flush()
+            outputStream.close()
+            pdfDocument.close()
+            reportFile
+        } catch (t: Throwable) {
+            t.printStackTrace()
+            pdfDocument.close()
+            null
+        }
+    }
 }
