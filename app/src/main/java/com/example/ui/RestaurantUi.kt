@@ -1,6 +1,7 @@
 package com.example.ui
 
 import android.content.Context
+import android.content.Intent
 import android.print.PrintAttributes
 import android.print.PrintManager
 import android.webkit.WebView
@@ -3908,46 +3909,126 @@ fun ComandasTab(
                                     // Action buttons for active order
                                     if (selectedOrderType == "ACTIVAS") {
                                         Spacer(modifier = Modifier.height(14.dp))
-                                        Row(
+                                        val context = LocalContext.current
+                                        Column(
                                             modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
-                                            OutlinedButton(
-                                                onClick = { viewModel.cancelOrder(order) },
-                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
-                                                modifier = Modifier.weight(1f)
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
-                                                Text("Cancelar", fontWeight = FontWeight.Bold)
+                                                // 1. Salir
+                                                OutlinedButton(
+                                                    onClick = onBack,
+                                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant),
+                                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                                                    modifier = Modifier.weight(1f).testTag("salir_button")
+                                                ) {
+                                                    Icon(Icons.Default.Close, contentDescription = "Salir", modifier = Modifier.size(16.dp))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Salir", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
+                                                }
+
+                                                // 2. Editar
+                                                OutlinedButton(
+                                                    onClick = { showEditOrderDialog = order },
+                                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+                                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                                                    modifier = Modifier.weight(1.1f).testTag("editar_button")
+                                                ) {
+                                                    Icon(Icons.Default.Edit, contentDescription = "Modificar", modifier = Modifier.size(14.dp))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Editar", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
+                                                }
+
+                                                // 3. Cocinar o/ Listo
+                                                Button(
+                                                    onClick = { viewModel.advanceOrderStatus(order) },
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = if (order.isDelivery) MaterialTheme.colorScheme.secondary else Color(0xFF2E7D32)
+                                                    ),
+                                                    modifier = Modifier.weight(1.3f).testTag("advance_status_button")
+                                                ) {
+                                                    Icon(
+                                                        if (order.isDelivery) Icons.Default.Info else Icons.Default.Check,
+                                                        contentDescription = "Avanzar",
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        if (order.isDelivery) "Entregar" else "Cocinar o/ Listo",
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 11.sp,
+                                                        maxLines = 1
+                                                    )
+                                                }
                                             }
 
-                                            OutlinedButton(
-                                                onClick = { showEditOrderDialog = order },
-                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
-                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
-                                                modifier = Modifier.weight(1.1f)
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
-                                                Icon(Icons.Default.Edit, contentDescription = "Modificar", modifier = Modifier.size(16.dp))
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text("Editar", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                            }
+                                                // 4. Eliminar
+                                                OutlinedButton(
+                                                    onClick = { viewModel.cancelOrder(order) },
+                                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                                                    modifier = Modifier.weight(1f).testTag("eliminar_button")
+                                                ) {
+                                                    Icon(Icons.Default.Delete, contentDescription = "Eliminar", modifier = Modifier.size(14.dp))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Eliminar", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
+                                                }
 
-                                            Button(
-                                                onClick = { viewModel.advanceOrderStatus(order) },
-                                                colors = ButtonDefaults.buttonColors(
-                                                    containerColor = if (order.isDelivery) MaterialTheme.colorScheme.secondary else Color(0xFF2E7D32)
-                                                ),
-                                                modifier = Modifier.weight(1.3f)
-                                            ) {
-                                                Icon(
-                                                    if (order.isDelivery) Icons.Default.Info else Icons.Default.Check,
-                                                    contentDescription = "Avanzar"
-                                                )
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text(
-                                                    if (order.isDelivery) "Entregar Pedido" else "Cocinado / Listo",
-                                                    fontWeight = FontWeight.Bold
-                                                )
+                                                // 5. Compartir
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        viewModel.loadOrderItems(order.id) { items ->
+                                                            try {
+                                                                val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+                                                                val shareText = java.lang.StringBuilder().apply {
+                                                                    appendLine("=== COMANDA #${order.id} ===")
+                                                                    appendLine("Cliente: ${order.customerName ?: "Mostrador"}")
+                                                                    if (order.isDelivery && order.deliveryAddress != null) {
+                                                                        appendLine("Entrega: ${order.deliveryAddress}")
+                                                                    } else if (order.tableNumber != null) {
+                                                                        appendLine("Mesa: ${order.tableNumber}")
+                                                                    } else {
+                                                                        appendLine("Tipo: Para llevar / Mostrador")
+                                                                    }
+                                                                    appendLine("Fecha: ${dateFormat.format(Date(order.timestamp))}")
+                                                                    appendLine("-------------------------")
+                                                                    items.forEach {
+                                                                        appendLine("- ${it.dishName} x${it.quantity}: ${(it.price * it.quantity).formatPrice()}")
+                                                                    }
+                                                                    appendLine("-------------------------")
+                                                                    appendLine("TOTAL: ${order.totalAmount.formatPrice()}")
+                                                                    appendLine("=========================")
+                                                                }.toString()
+
+                                                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                                    type = "text/plain"
+                                                                    putExtra(Intent.EXTRA_TEXT, shareText)
+                                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                                }
+                                                                val chooser = Intent.createChooser(shareIntent, "Compartir Comanda").apply {
+                                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                                }
+                                                                context.startActivity(chooser)
+                                                            } catch (ex: Exception) {
+                                                                Toast.makeText(context, "Error al compartir comanda: ${ex.message}", Toast.LENGTH_SHORT).show()
+                                                            }
+                                                        }
+                                                    },
+                                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+                                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                                                    modifier = Modifier.weight(1f).testTag("compartir_button")
+                                                ) {
+                                                    Icon(Icons.Default.Share, contentDescription = "Compartir", modifier = Modifier.size(14.dp))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Compartir", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
+                                                }
                                             }
                                         }
                                     }
