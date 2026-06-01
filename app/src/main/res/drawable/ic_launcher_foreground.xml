@@ -3,6 +3,6 @@
     <item
         android:width="66dp"
         android:height="66dp"
-        android:drawable="@drawable/app_logo_benitez_exact_1779740464288"
+        android:drawable="@drawable/img_app_icon_delivery_1780274718029"
         android:gravity="center" />
 </layer-list>
