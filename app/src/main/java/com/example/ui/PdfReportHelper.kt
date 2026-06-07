@@ -806,4 +806,79 @@ object PdfReportHelper {
             Toast.makeText(context, "Error al generar CSV: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
+
+    /**
+     * Generates a physical CSV file for a cash closure report and returns it.
+     */
+    fun generateClosureCsv(
+        context: Context,
+        fileNamePrefix: String,
+        restaurantName: String,
+        dateRange: String,
+        initialCash: Double,
+        actualCashAtClose: Double,
+        expectedCashAtClose: Double,
+        totalSales: Double,
+        totalCost: Double,
+        paymentsBreakdown: Map<String, Double>,
+        orderTypesBreakdown: Map<String, Int>,
+        productStats: List<ProductStat>
+    ): File? {
+        try {
+            val csvBuilder = StringBuilder()
+            // Add UTF-8 BOM
+            csvBuilder.append('\uFEFF')
+            
+            csvBuilder.append("REPORTE DE CIERRE,${restaurantName.uppercase(Locale.getDefault())}\n")
+            csvBuilder.append("Periodo / Rango de Fecha,${dateRange}\n\n")
+            
+            csvBuilder.append("METRICAS FINANCIERAS PRINCIPALES\n")
+            csvBuilder.append("Efectivo Inicial en Caja,$${String.format(Locale.US, "%.2f", initialCash)}\n")
+            csvBuilder.append("Efectivo Esperado,$${String.format(Locale.US, "%.2f", expectedCashAtClose)}\n")
+            csvBuilder.append("Efectivo Real al Cierre,$${String.format(Locale.US, "%.2f", actualCashAtClose)}\n")
+            
+            val diff = actualCashAtClose - expectedCashAtClose
+            csvBuilder.append("Diferencia de Caja,$${String.format(Locale.US, "%.2f", diff)}\n")
+            csvBuilder.append("Ventas Brutas Totales,$${String.format(Locale.US, "%.2f", totalSales)}\n")
+            csvBuilder.append("Costo Total de Insumos,$${String.format(Locale.US, "%.2f", totalCost)}\n")
+            csvBuilder.append("Ganancia Neta,$${String.format(Locale.US, "%.2f", totalSales - totalCost)}\n\n")
+            
+            csvBuilder.append("INGRESOS POR METODO DE PAGO\n")
+            csvBuilder.append("Metodo de Pago,Monto Recibido\n")
+            paymentsBreakdown.forEach { (method, amt) ->
+                csvBuilder.append("$method,$${String.format(Locale.US, "%.2f", amt)}\n")
+            }
+            csvBuilder.append("\n")
+            
+            csvBuilder.append("DISTRIBUCION DE PEDIDOS\n")
+            csvBuilder.append("Canal de Venta,Cantidad de Pedidos\n")
+            orderTypesBreakdown.forEach { (type, count) ->
+                val desc = when(type) {
+                    "COMER_AQUI" -> "Mesa / Comer Aqui"
+                    "LLEVAR" -> "Para Llevar"
+                    "DOMICILIO" -> "Entrega Domicilio"
+                    else -> type
+                }
+                csvBuilder.append("$desc,$count\n")
+            }
+            csvBuilder.append("\n")
+            
+            csvBuilder.append("DESGLOSE DE ARTICULOS VENDIDOS\n")
+            csvBuilder.append("Platillo,Cantidad Vendida,Precio Unitario prom.,Ingresos,Costos,Utilidad neta\n")
+            productStats.forEach { stat ->
+                val unitPrice = if (stat.quantitySold > 0) stat.revenue / stat.quantitySold else 0.0
+                csvBuilder.append("\"${stat.name}\",${stat.quantitySold},$${String.format(Locale.US, "%.2f", unitPrice)},$${String.format(Locale.US, "%.2f", stat.revenue)},$${String.format(Locale.US, "%.2f", stat.cost)},$${String.format(Locale.US, "%.2f", stat.profit)}\n")
+            }
+            
+            val file = File(context.cacheDir, "${fileNamePrefix}_${System.currentTimeMillis()}.csv")
+            val outputStream = FileOutputStream(file)
+            outputStream.write(csvBuilder.toString().toByteArray(Charsets.UTF_8))
+            outputStream.flush()
+            outputStream.close()
+            return file
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return null
+        }
+    }
 }

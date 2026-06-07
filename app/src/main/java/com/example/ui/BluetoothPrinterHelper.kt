@@ -449,6 +449,113 @@ object BluetoothPrinterHelper {
     }
 
     /**
+     * Generates ESC/POS bytes for a consolidated cash closure report.
+     */
+    fun buildEscPosClosureReport(
+        restaurantName: String,
+        reportTitle: String,
+        dateRange: String,
+        totalSales: Double,
+        totalCost: Double,
+        paymentsBreakdown: Map<String, Double>,
+        productStats: List<com.example.ui.RestaurantViewModel.ProductStat>
+    ): ByteArray {
+        val bytes = mutableListOf<Byte>()
+
+        val CMD_INIT = byteArrayOf(0x1B, 0x40)
+        val CMD_ALIGN_LEFT = byteArrayOf(0x1B, 0x61, 0)
+        val CMD_ALIGN_CENTER = byteArrayOf(0x1B, 0x61, 1)
+        
+        val FONT_NORMAL = byteArrayOf(0x1B, 0x21, 0x00)
+        val FONT_BOLD = byteArrayOf(0x1B, 0x21, 0x08)
+        val FONT_BOLD_DOUBLE = byteArrayOf(0x1B, 0x21, 0x38)
+
+        fun sanitizeText(text: String): String {
+            return text.replace('á', 'a')
+                .replace('é', 'e')
+                .replace('í', 'i')
+                .replace('ó', 'o')
+                .replace('ú', 'u')
+                .replace('Á', 'A')
+                .replace('É', 'E')
+                .replace('Í', 'I')
+                .replace('Ó', 'O')
+                .replace('Ú', 'U')
+                .replace('ü', 'u')
+                .replace('Ü', 'U')
+                .replace("¿", "")
+                .replace("¡", "")
+                .replace('ñ', 'n')
+                .replace('Ñ', 'N')
+        }
+
+        fun addTextLine(text: String, alignment: ByteArray = CMD_ALIGN_LEFT, font: ByteArray = FONT_NORMAL, newline: Boolean = true) {
+            bytes.addAll(alignment.toList())
+            bytes.addAll(font.toList())
+            val sanitized = sanitizeText(text)
+            bytes.addAll(sanitized.toByteArray(Charsets.US_ASCII).toList())
+            if (newline) {
+                bytes.addAll("\n".toByteArray(Charsets.US_ASCII).toList())
+            }
+        }
+
+        fun drawDivider() {
+            addTextLine("--------------------------------", CMD_ALIGN_LEFT, FONT_NORMAL)
+        }
+
+        fun drawDoubleDivider() {
+            addTextLine("================================", CMD_ALIGN_LEFT, FONT_NORMAL)
+        }
+
+        bytes.addAll(CMD_INIT.toList())
+
+        addTextLine(restaurantName.uppercase(Locale.getDefault()), CMD_ALIGN_CENTER, FONT_BOLD_DOUBLE)
+        addTextLine(reportTitle.uppercase(Locale.getDefault()), CMD_ALIGN_CENTER, FONT_BOLD)
+        addTextLine("Periodo: $dateRange", CMD_ALIGN_CENTER, FONT_NORMAL)
+        drawDoubleDivider()
+
+        addTextLine("RESUMEN DE METRICAS", CMD_ALIGN_CENTER, FONT_BOLD)
+        drawDivider()
+        
+        val netProfit = totalSales - totalCost
+        addTextLine("Ventas Totales: " + String.format(Locale.US, "$%.2f", totalSales), CMD_ALIGN_LEFT, FONT_BOLD)
+        addTextLine("Costo Insumos:  " + String.format(Locale.US, "$%.2f", totalCost), CMD_ALIGN_LEFT, FONT_NORMAL)
+        addTextLine("Utilidad Neta:  " + String.format(Locale.US, "$%.2f", netProfit), CMD_ALIGN_LEFT, FONT_BOLD)
+        
+        drawDivider()
+        addTextLine("METODOS DE PAGO", CMD_ALIGN_CENTER, FONT_BOLD)
+        drawDivider()
+        paymentsBreakdown.forEach { (method, amt) ->
+            val spaces = 32 - method.length - String.format(Locale.US, "$%.2f", amt).length - 2
+            val pad = " ".repeat(maxOf(1, spaces))
+            addTextLine("• $method:$pad" + String.format(Locale.US, "$%.2f", amt), CMD_ALIGN_LEFT, FONT_NORMAL)
+        }
+
+        if (productStats.isNotEmpty()) {
+            drawDivider()
+            addTextLine("PLATILLOS MAS VENDIDOS", CMD_ALIGN_CENTER, FONT_BOLD)
+            drawDivider()
+            productStats.take(10).forEach { stat ->
+                val qtyStr = "x${stat.quantitySold}"
+                val revStr = String.format(Locale.US, "$%.2f", stat.revenue)
+                addTextLine(stat.name, CMD_ALIGN_LEFT, FONT_BOLD)
+                addTextLine("   Cant: $qtyStr | Total: $revStr", CMD_ALIGN_LEFT, FONT_NORMAL)
+            }
+        }
+
+        drawDoubleDivider()
+        addTextLine("Sabor y Gestion Benitez", CMD_ALIGN_CENTER, FONT_NORMAL)
+        addTextLine("Reporte emitido localmente", CMD_ALIGN_CENTER, FONT_NORMAL)
+        addTextLine(SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()), CMD_ALIGN_CENTER, FONT_NORMAL)
+        addTextLine("\n\n\n\n")
+
+        // Feed and cut
+        bytes.addAll(byteArrayOf(0x1D, 0x56, 0x42, 0x00).toList())
+
+        return bytes.toByteArray()
+    }
+
+    /**
      * Establishes a Bluetooth socket connection and transmits standard ESC/POS bytes asynchronously.
      */
     @SuppressLint("MissingPermission")

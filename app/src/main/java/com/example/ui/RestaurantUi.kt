@@ -6522,6 +6522,7 @@ fun CierresTab(
     activeOrderItems: List<OrderItem>,
     onBack: () -> Unit
 ) {
+    var activeSubTab by remember { mutableStateOf("CONTROL_CAJA") } // "CONTROL_CAJA" or "REPORTES"
     var selectedReportClosure by remember { mutableStateOf<CashClosure?>(null) }
     val selectedClosureDetails by viewModel.selectedClosure.collectAsStateWithLifecycle()
     val selectedClosureItems by viewModel.selectedClosureItems.collectAsStateWithLifecycle()
@@ -6712,8 +6713,59 @@ fun CierresTab(
             )
         }
 
-        // PANEL 1: REGISTRADORA EN CURSO (TIPO CORTE PARCIAL)
-        Card(
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Button(
+                onClick = { activeSubTab = "CONTROL_CAJA" },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (activeSubTab == "CONTROL_CAJA") MaterialTheme.colorScheme.primary else Color.Transparent,
+                    contentColor = if (activeSubTab == "CONTROL_CAJA") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                shape = RoundedCornerShape(8.dp),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("subtab_control_caja"),
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
+                Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Caja Diaria", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+
+            Button(
+                onClick = { activeSubTab = "REPORTES" },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (activeSubTab == "REPORTES") MaterialTheme.colorScheme.primary else Color.Transparent,
+                    contentColor = if (activeSubTab == "REPORTES") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                shape = RoundedCornerShape(8.dp),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("subtab_reportes"),
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
+                Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Reportes Período", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+        }
+
+        if (activeSubTab == "REPORTES") {
+            ReportesPeriodoView(
+                viewModel = viewModel,
+                closures = closures,
+                onBack = onBack
+            )
+        } else {
+            // PANEL 1: REGISTRADORA EN CURSO (TIPO CORTE PARCIAL)
+            Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)),
             border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
             shape = RoundedCornerShape(16.dp),
@@ -7242,6 +7294,7 @@ fun CierresTab(
                 }
             }
         }
+        } // Close activeSubTab "else" block (CONTROL_CAJA)
     }
 }
 
@@ -8732,4 +8785,883 @@ fun LogoRowItem(
             Text(desc, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         }
     }
+}
+
+// ==========================================
+// SECCION 4: CONSOLIDADO & REPORTES PERIODICOS (DIARIO, SEMANAL, MENSUAL, ANUAL)
+// ==========================================
+@Composable
+fun ReportesPeriodoView(
+    viewModel: RestaurantViewModel,
+    closures: List<CashClosure>,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var reportPeriodType by remember { mutableStateOf("DIARIO") } // "DIARIO", "SEMANAL", "MENSUAL", "ANUAL"
+
+    // Extract unique days
+    val uniqueDays = remember(closures) {
+        closures.map { it.dateString }.distinct().sortedDescending()
+    }
+
+    // Extract unique weeks
+    val uniqueWeeks = remember(closures) {
+        closures.map { closure ->
+            val cal = Calendar.getInstance()
+            cal.timeInMillis = closure.closeTimestamp
+            val week = cal.get(Calendar.WEEK_OF_YEAR)
+            val year = cal.get(Calendar.YEAR)
+            "Semana $week, $year" to (week to year)
+        }.distinctBy { it.first }.sortedByDescending { it.second.second * 100 + it.second.first }
+    }
+
+    // Extract unique months
+    val uniqueMonths = remember(closures) {
+        closures.map { closure ->
+            val dateParts = closure.dateString.split("/")
+            if (dateParts.size == 3) {
+                val month = dateParts[1]
+                val year = dateParts[2]
+                val monthName = when (month) {
+                    "01" -> "Enero"
+                    "02" -> "Febrero"
+                    "03" -> "Marzo"
+                    "04" -> "Abril"
+                    "05" -> "Mayo"
+                    "06" -> "Junio"
+                    "07" -> "Julio"
+                    "08" -> "Agosto"
+                    "09" -> "Septiembre"
+                    "10" -> "Octubre"
+                    "11" -> "Noviembre"
+                    "12" -> "Diciembre"
+                    else -> "Mes $month"
+                }
+                "$monthName $year" to "$month/$year"
+            } else {
+                "Otro" to ""
+            }
+        }.filter { it.second.isNotEmpty() }.distinctBy { it.second }.sortedByDescending {
+            val parts = it.second.split("/")
+            parts[1].toInt() * 100 + parts[0].toInt()
+        }
+    }
+
+    // Extract unique years
+    val uniqueYears = remember(closures) {
+        closures.map { closure ->
+            val dateParts = closure.dateString.split("/")
+            if (dateParts.size == 3) dateParts[2] else ""
+        }.filter { it.isNotEmpty() }.distinct().sortedDescending()
+    }
+
+    // Bind selectors to current selections
+    var selectedDay by remember(uniqueDays) { mutableStateOf(uniqueDays.firstOrNull() ?: "") }
+    var selectedWeekPair by remember(uniqueWeeks) { mutableStateOf(uniqueWeeks.firstOrNull()) }
+    var selectedMonthPair by remember(uniqueMonths) { mutableStateOf(uniqueMonths.firstOrNull()) }
+    var selectedYear by remember(uniqueYears) { mutableStateOf(uniqueYears.firstOrNull() ?: "") }
+
+    // Period selector chips
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        listOf("DIARIO" to "Diario", "SEMANAL" to "Semanal", "MENSUAL" to "Mensual", "ANUAL" to "Anual").forEach { (type, label) ->
+            val isSel = reportPeriodType == type
+            FilterChip(
+                selected = isSel,
+                onClick = { reportPeriodType = type },
+                label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.primary
+                ),
+                modifier = Modifier.weight(1f).testTag("chip_report_$type")
+            )
+        }
+    }
+
+    // Dynamic Select drop-down based on selection
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                text = "Seleccione el Periodo a Consolidar:",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+
+            when (reportPeriodType) {
+                "DIARIO" -> {
+                    if (uniqueDays.isEmpty()) {
+                        Text("No hay cierres registrados en la base de datos.", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                    } else {
+                        var expanded by remember { mutableStateOf(false) }
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(
+                                onClick = { expanded = true },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth().testTag("select_day_button")
+                            ) {
+                                Text(if (selectedDay.isNotEmpty()) "Día: $selectedDay" else "Seleccione Día", fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.weight(1f))
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                            }
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false },
+                                modifier = Modifier.fillMaxWidth(0.9f)
+                            ) {
+                                uniqueDays.forEach { d ->
+                                    DropdownMenuItem(
+                                        text = { Text("Día: $d") },
+                                        onClick = {
+                                            selectedDay = d
+                                            expanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                "SEMANAL" -> {
+                    if (uniqueWeeks.isEmpty()) {
+                        Text("No hay cierres registrados para agrupar por semana.", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                    } else {
+                        var expanded by remember { mutableStateOf(false) }
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(
+                                onClick = { expanded = true },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth().testTag("select_week_button")
+                            ) {
+                                Text(selectedWeekPair?.first ?: "Seleccione Semana", fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.weight(1f))
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                            }
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false },
+                                modifier = Modifier.fillMaxWidth(0.9f)
+                            ) {
+                                uniqueWeeks.forEach { w ->
+                                    DropdownMenuItem(
+                                        text = { Text(w.first) },
+                                        onClick = {
+                                            selectedWeekPair = w
+                                            expanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                "MENSUAL" -> {
+                    if (uniqueMonths.isEmpty()) {
+                        Text("No hay cierres registrados para agrupar por mes.", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                    } else {
+                        var expanded by remember { mutableStateOf(false) }
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(
+                                onClick = { expanded = true },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth().testTag("select_month_button")
+                            ) {
+                                Text(selectedMonthPair?.first ?: "Seleccione Mes", fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.weight(1f))
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                            }
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false },
+                                modifier = Modifier.fillMaxWidth(0.9f)
+                            ) {
+                                uniqueMonths.forEach { m ->
+                                    DropdownMenuItem(
+                                        text = { Text(m.first) },
+                                        onClick = {
+                                            selectedMonthPair = m
+                                            expanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                "ANUAL" -> {
+                    if (uniqueYears.isEmpty()) {
+                        Text("No hay cierres registrados para agrupar por año.", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                    } else {
+                        var expanded by remember { mutableStateOf(false) }
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(
+                                onClick = { expanded = true },
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth().testTag("select_year_button")
+                            ) {
+                                Text(if (selectedYear.isNotEmpty()) "Año: $selectedYear" else "Seleccione Año", fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.weight(1f))
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                            }
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false },
+                                modifier = Modifier.fillMaxWidth(0.9f)
+                            ) {
+                                uniqueYears.forEach { y ->
+                                    DropdownMenuItem(
+                                        text = { Text("Año: $y") },
+                                        onClick = {
+                                            selectedYear = y
+                                            expanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Resolve matching closures
+    val matchingClosures = remember(reportPeriodType, selectedDay, selectedWeekPair, selectedMonthPair, selectedYear, closures) {
+        when (reportPeriodType) {
+            "DIARIO" -> closures.filter { it.dateString == selectedDay }
+            "SEMANAL" -> selectedWeekPair?.let { (_, weekYear) ->
+                closures.filter { closure ->
+                    val cal = Calendar.getInstance()
+                    cal.timeInMillis = closure.closeTimestamp
+                    val w = cal.get(Calendar.WEEK_OF_YEAR)
+                    val y = cal.get(Calendar.YEAR)
+                    w == weekYear.first && y == weekYear.second
+                }
+            } ?: emptyList()
+            "MENSUAL" -> selectedMonthPair?.let { (_, monthYearStr) ->
+                closures.filter { it.dateString.endsWith("/$monthYearStr") }
+            } ?: emptyList()
+            "ANUAL" -> closures.filter { it.dateString.endsWith("/$selectedYear") }
+            else -> emptyList()
+        }
+    }
+
+    if (matchingClosures.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxWidth().height(160.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "No se encontraron cierres oficiales para el periodo seleccionado.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                textAlign = TextAlign.Center
+            )
+        }
+    } else {
+        val periodRangeTitle = when (reportPeriodType) {
+            "DIARIO" -> "Reporte Diario: $selectedDay"
+            "SEMANAL" -> selectedWeekPair?.first ?: "Reporte Semanal"
+            "MENSUAL" -> "Reporte Mensual: ${selectedMonthPair?.first}"
+            "ANUAL" -> "Reporte Anual: $selectedYear"
+            else -> "Reporte Consolidado"
+        }
+
+        val totalSales = matchingClosures.sumOf { it.totalSales }
+        val totalCost = matchingClosures.sumOf { it.totalCost }
+        val totalProfit = totalSales - totalCost
+        val totalOrdersCount = matchingClosures.sumOf { it.totalOrdersCount }
+
+        val cardSales = matchingClosures.sumOf { it.cardSales }
+        val cashSales = matchingClosures.sumOf { it.cashSales }
+        val transferSales = matchingClosures.sumOf { it.transferSales }
+
+        val initialCashSum = matchingClosures.sumOf { it.initialCash }
+        val expectedCashSum = matchingClosures.sumOf { it.expectedCashAtClose }
+        val actualCashSum = matchingClosures.sumOf { it.actualCashAtClose }
+        val diffSum = actualCashSum - expectedCashSum
+
+        val paymentsMap = mapOf(
+            "Efectivo" to cashSales,
+            "Tarjeta" to cardSales,
+            "Transferencia" to transferSales
+        )
+
+        // Google Drive integration variables
+        var tempFileToSave by remember { mutableStateOf<java.io.File?>(null) }
+        var saveMimeType by remember { mutableStateOf("application/pdf") }
+
+        val driveSaveLauncher = rememberLauncherForActivityResult(
+            contract = androidx.activity.result.contract.ActivityResultContracts.CreateDocument(saveMimeType)
+        ) { uri ->
+            if (uri != null) {
+                val file = tempFileToSave
+                if (file != null && file.exists()) {
+                    try {
+                        context.contentResolver.openOutputStream(uri)?.use { output ->
+                            file.inputStream().use { input ->
+                                input.copyTo(output)
+                            }
+                        }
+                        Toast.makeText(context, "¡Reporte archivado con éxito en Google Drive!", Toast.LENGTH_LONG).show()
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Error al archivar en Google Drive: ${e.message}", Toast.LENGTH_LONG).show()
+                    }
+                } else {
+                    Toast.makeText(context, "Error: archivo de reporte temporal no encontrado", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        // Load statistics asynchronously
+        var reportProductStats by remember { mutableStateOf<List<RestaurantViewModel.ProductStat>>(emptyList()) }
+        var isLoadingProductStats by remember { mutableStateOf(false) }
+
+        LaunchedEffect(matchingClosures) {
+            isLoadingProductStats = true
+            viewModel.getStatsForClosures(matchingClosures) { stats ->
+                reportProductStats = stats
+                isLoadingProductStats = false
+            }
+        }
+
+        // 1. CONSOLIDATED KPI CARD
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)),
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.List, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(periodRangeTitle, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text("VENTAS BRUTAS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(totalSales.formatPrice(), fontSize = 15.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text("COSTO INSUMOS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(totalCost.formatPrice(), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text("UTILIDAD NETA", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(totalProfit.formatPrice(), fontSize = 15.sp, fontWeight = FontWeight.Black, color = Color(0xFF2E7D32))
+                        }
+                    }
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text("TRANSACCIONES", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("$totalOrdersCount pedidos", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // 2. CASH FLOW CARD
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text("Flujo de Caja Acumulado:", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("• Efectivo Inicial:", fontSize = 12.sp)
+                    Text(initialCashSum.formatPrice(), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(3.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("• Efectivo Esperado:", fontSize = 12.sp)
+                    Text(expectedCashSum.formatPrice(), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(3.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("• Efectivo Real Declarado:", fontSize = 12.sp)
+                    Text(actualCashSum.formatPrice(), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Divider()
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("• Diferencia de Caja:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    val diffColor = when {
+                        diffSum > 0f -> Color(0xFF1B5E20)
+                        diffSum < 0f -> MaterialTheme.colorScheme.error
+                        else -> MaterialTheme.colorScheme.onSurface
+                    }
+                    Text(diffSum.formatPrice(), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = diffColor)
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                Text("Distribución por Métodos de Pago:", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
+                Spacer(modifier = Modifier.height(6.dp))
+
+                paymentsMap.forEach { (method, amt) ->
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("• $method:", fontSize = 12.sp)
+                        Text(amt.formatPrice(), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.height(3.dp))
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // 3. PRODUCT BREAKDOWN SECTION
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text("Artículos Más Vendidos:", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (isLoadingProductStats) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("Cargando...", fontSize = 12.sp)
+                    }
+                } else if (reportProductStats.isEmpty()) {
+                    Text("No hay artículos registrados para este período.", fontSize = 12.sp)
+                } else {
+                    reportProductStats.take(10).forEachIndexed { index, propStat ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1.5f)) {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                    shape = CircleShape,
+                                    modifier = Modifier.size(18.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text("${index + 1}", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(propStat.name, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Row(modifier = Modifier.weight(1.2f), horizontalArrangement = Arrangement.End) {
+                                Text("x${propStat.quantitySold}", fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 12.dp))
+                                Text(propStat.revenue.formatPrice(), fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color(0xFF2E7D32))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // 4. ACTION EXPORTER ACTIONS
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.1f)),
+            shape = RoundedCornerShape(14.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text(
+                    text = "Exportar Reporte Consolidado:",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            val rName = viewModel.restaurantName.value
+                            val rAddress = viewModel.restaurantAddress.value
+                            val rPhone = viewModel.restaurantPhone.value
+                            val rLogoBase64 = viewModel.restaurantLogoBase64.value
+
+                            val file = PdfReportHelper.generateClosureReport(
+                                context = context,
+                                restaurantName = rName,
+                                restaurantAddress = rAddress,
+                                restaurantPhone = rPhone,
+                                restaurantLogoBase64 = rLogoBase64,
+                                reportTitle = "REPORTE CONSOLIDADO DETALLADO ($periodRangeTitle)",
+                                dateRange = periodRangeTitle,
+                                ordersCount = totalOrdersCount,
+                                totalSales = totalSales,
+                                totalCost = totalCost,
+                                paymentsBreakdown = paymentsMap,
+                                orderTypesBreakdown = mapOf("COMER_AQUI" to totalOrdersCount),
+                                productStats = reportProductStats
+                            )
+                            if (file != null) {
+                                PdfReportHelper.shareToWhatsApp(context, file, "Reporte Consolidado ($periodRangeTitle)")
+                            } else {
+                                Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f).testTag("button_share_whatsapp")
+                    ) {
+                        Text("WhatsApp", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+
+                    Button(
+                        onClick = {
+                            val rName = viewModel.restaurantName.value
+                            val rAddress = viewModel.restaurantAddress.value
+                            val rPhone = viewModel.restaurantPhone.value
+                            val rLogoBase64 = viewModel.restaurantLogoBase64.value
+
+                            val file = PdfReportHelper.generateClosureReport(
+                                context = context,
+                                restaurantName = rName,
+                                restaurantAddress = rAddress,
+                                restaurantPhone = rPhone,
+                                restaurantLogoBase64 = rLogoBase64,
+                                reportTitle = "REPORTE CONSOLIDADO DETALLADO ($periodRangeTitle)",
+                                dateRange = periodRangeTitle,
+                                ordersCount = totalOrdersCount,
+                                totalSales = totalSales,
+                                totalCost = totalCost,
+                                paymentsBreakdown = paymentsMap,
+                                orderTypesBreakdown = mapOf("COMER_AQUI" to totalOrdersCount),
+                                productStats = reportProductStats
+                            )
+                            if (file != null) {
+                                PdfReportHelper.shareDocument(context, file, "Reporte Consolidado ($periodRangeTitle)")
+                            } else {
+                                Toast.makeText(context, "Error al generar PDF", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f).testTag("button_share_general_pdf")
+                    ) {
+                        Text("Compartir PDF", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = {
+                            PdfReportHelper.shareCsvReport(
+                                context = context,
+                                fileNamePrefix = "Reporte_${reportPeriodType}",
+                                subject = "Reporte Finanzas: $periodRangeTitle",
+                                restaurantName = viewModel.restaurantName.value,
+                                dateRange = periodRangeTitle,
+                                initialCash = initialCashSum,
+                                actualCashAtClose = actualCashSum,
+                                expectedCashAtClose = expectedCashSum,
+                                totalSales = totalSales,
+                                totalCost = totalCost,
+                                paymentsBreakdown = paymentsMap,
+                                orderTypesBreakdown = mapOf("COMER_AQUI" to totalOrdersCount),
+                                productStats = reportProductStats
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E7145)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f).testTag("button_share_csv")
+                    ) {
+                        Text("Excel/CSV", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            val bDevice = com.example.ui.BluetoothPrinterHelper.getSelectedPrinter(context)
+                            val prType = com.example.ui.BluetoothPrinterHelper.getPrinterType(context)
+                            
+                            val dataBytes = com.example.ui.BluetoothPrinterHelper.buildEscPosClosureReport(
+                                restaurantName = viewModel.restaurantName.value,
+                                reportTitle = periodRangeTitle,
+                                dateRange = periodRangeTitle,
+                                totalSales = totalSales,
+                                totalCost = totalCost,
+                                paymentsBreakdown = paymentsMap,
+                                productStats = reportProductStats
+                            )
+
+                            if (prType == "BLUETOOTH" && bDevice != null) {
+                                scope.launch {
+                                    val ok = com.example.ui.BluetoothPrinterHelper.printDirect(context, bDevice.address, dataBytes)
+                                    if (ok) {
+                                        Toast.makeText(context, "Impreso exitosamente", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Error Bluetooth. Usando impresora del sistema...", Toast.LENGTH_SHORT).show()
+                                        val rHtml = generateClosureReportHtml(viewModel.restaurantName.value, periodRangeTitle, periodRangeTitle, totalSales, totalCost, paymentsMap, reportProductStats)
+                                        sendToThermalPrinter(context, rHtml)
+                                    }
+                                }
+                            } else if (prType == "WIFI") {
+                                val (wIp, wPt) = com.example.ui.BluetoothPrinterHelper.getWifiPrinter(context)
+                                scope.launch {
+                                    val ok = com.example.ui.BluetoothPrinterHelper.printViaWifi(context, wIp, wPt, dataBytes)
+                                    if (ok) {
+                                        Toast.makeText(context, "Impreso exitosamente", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Error Wi-Fi. Usando impresora del sistema...", Toast.LENGTH_SHORT).show()
+                                        val rHtml = generateClosureReportHtml(viewModel.restaurantName.value, periodRangeTitle, periodRangeTitle, totalSales, totalCost, paymentsMap, reportProductStats)
+                                        sendToThermalPrinter(context, rHtml)
+                                    }
+                                }
+                            } else {
+                                val rHtml = generateClosureReportHtml(viewModel.restaurantName.value, periodRangeTitle, periodRangeTitle, totalSales, totalCost, paymentsMap, reportProductStats)
+                                sendToThermalPrinter(context, rHtml)
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1.2f).testTag("button_print_ticket_report")
+                    ) {
+                        Text("Reimprimir Ticket", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = {
+                            val rName = viewModel.restaurantName.value
+                            val rAddress = viewModel.restaurantAddress.value
+                            val rPhone = viewModel.restaurantPhone.value
+                            val rLogoBase64 = viewModel.restaurantLogoBase64.value
+
+                            val file = PdfReportHelper.generateClosureReport(
+                                context = context,
+                                restaurantName = rName,
+                                restaurantAddress = rAddress,
+                                restaurantPhone = rPhone,
+                                restaurantLogoBase64 = rLogoBase64,
+                                reportTitle = "REPORTE CONSOLIDADO ($periodRangeTitle)",
+                                dateRange = periodRangeTitle,
+                                ordersCount = totalOrdersCount,
+                                totalSales = totalSales,
+                                totalCost = totalCost,
+                                paymentsBreakdown = paymentsMap,
+                                orderTypesBreakdown = mapOf("COMER_AQUI" to totalOrdersCount),
+                                productStats = reportProductStats
+                            )
+                            if (file != null) {
+                                tempFileToSave = file
+                                saveMimeType = "application/pdf"
+                                driveSaveLauncher.launch("Cierre_Consolidado_${reportPeriodType}_${selectedDay.replace("/", "-")}.pdf")
+                            } else {
+                                Toast.makeText(context, "Error preparando PDF", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f).testTag("button_archive_drive_pdf")
+                    ) {
+                        Text("GDrive PDF", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = {
+                            val file = PdfReportHelper.generateClosureCsv(
+                                context = context,
+                                fileNamePrefix = "Cierre_Consolidado_${reportPeriodType}",
+                                restaurantName = viewModel.restaurantName.value,
+                                dateRange = periodRangeTitle,
+                                initialCash = initialCashSum,
+                                actualCashAtClose = actualCashSum,
+                                expectedCashAtClose = expectedCashSum,
+                                totalSales = totalSales,
+                                totalCost = totalCost,
+                                paymentsBreakdown = paymentsMap,
+                                orderTypesBreakdown = mapOf("COMER_AQUI" to totalOrdersCount),
+                                productStats = reportProductStats
+                            )
+                            if (file != null) {
+                                tempFileToSave = file
+                                saveMimeType = "text/csv"
+                                driveSaveLauncher.launch("Cierre_Consolidado_${reportPeriodType}_${selectedDay.replace("/", "-")}.csv")
+                            } else {
+                                Toast.makeText(context, "Error preparando CSV", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.outline),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f).testTag("button_archive_drive_csv")
+                    ) {
+                        Text("GDrive CSV", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+fun generateClosureReportHtml(
+    restaurantName: String,
+    reportTitle: String,
+    dateRange: String,
+    totalSales: Double,
+    totalCost: Double,
+    paymentsBreakdown: Map<String, Double>,
+    productStats: List<RestaurantViewModel.ProductStat>
+): String {
+    val netProfit = totalSales - totalCost
+    val statsRowsHtml = productStats.take(15).mapIndexed { idx, stat ->
+        """
+        <tr>
+            <td style="text-align: left; font-size: 11px;">${idx + 1}. ${stat.name}</td>
+            <td style="text-align: center; font-size: 11px;">${stat.quantitySold}</td>
+            <td style="text-align: right; font-size: 11px;">$${String.format(Locale.US, "%.2f", stat.revenue)}</td>
+        </tr>
+        """
+    }.joinToString("")
+
+    val paymentRowsHtml = paymentsBreakdown.map { (method, amt) ->
+        """
+        <tr>
+            <td style="text-align: left; font-weight: bold; font-size: 12px;">$method:</td>
+            <td style="text-align: right; font-size: 12px;">$${String.format(Locale.US, "%.2f", amt)}</td>
+        </tr>
+        """
+    }.joinToString("")
+
+    return """
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body {
+                font-family: 'Courier New', Courier, monospace;
+                margin: 0;
+                padding: 10px;
+                color: #000;
+                width: 280px; /* 58mm thermal width */
+            }
+            .center { text-align: center; }
+            .right { text-align: right; }
+            .bold { font-weight: bold; }
+            .header-text { font-size: 16px; margin: 4px 0; }
+            .title-text { font-size: 13px; font-weight: bold; margin: 6px 0; }
+            .divider { border-top: 1px dashed #000; margin: 8px 0; }
+            .double-divider { border-top: 2px double #000; margin: 8px 0; }
+            table { width: 100%; border-collapse: collapse; }
+            td { font-size: 12px; padding: 2px 0; }
+            th { font-size: 11px; font-weight: bold; padding: 4px 0; border-bottom: 1px dashed #000; }
+        </style>
+    </head>
+    <body>
+        <div class="center bold header-text">${restaurantName.uppercase(Locale.getDefault())}</div>
+        <div class="center bold title-text">${reportTitle.uppercase(Locale.getDefault())}</div>
+        <div class="center" style="font-size: 11px;">Periodo: $dateRange</div>
+        
+        <div class="double-divider"></div>
+        <div class="center bold" style="font-size: 12px;">RESUMEN DE RESULTADOS</div>
+        <div class="divider"></div>
+        
+        <table>
+            <tr>
+                <td class="bold">VENTAS TOTALES:</td>
+                <td class="right bold">$${String.format(Locale.US, "%.2f", totalSales)}</td>
+            </tr>
+            <tr>
+                <td>Costo Insumos:</td>
+                <td class="right">$${String.format(Locale.US, "%.2f", totalCost)}</td>
+            </tr>
+            <tr>
+                <td class="bold">UTILIDAD NETA:</td>
+                <td class="right bold">$${String.format(Locale.US, "%.2f", netProfit)}</td>
+            </tr>
+        </table>
+        
+        <div class="divider"></div>
+        <div class="center bold" style="font-size: 12px;">METODOS DE PAGO</div>
+        <div class="divider"></div>
+        
+        <table>
+            $paymentRowsHtml
+        </table>
+        
+        ${if (productStats.isNotEmpty()) """
+        <div class="divider"></div>
+        <div class="center bold" style="font-size: 12px;">PRODUCTOS MAS VENDIDOS</div>
+        <div class="divider"></div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align: left;">Desc.</th>
+                    <th>Cant.</th>
+                    <th style="text-align: right;">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                $statsRowsHtml
+            </tbody>
+        </table>
+        """ else ""}
+        
+        <div class="double-divider"></div>
+        <div class="center" style="font-size: 10px;">Sabor y Gestion Benitez</div>
+        <div class="center" style="font-size: 10px;">Reporte local generado con exito</div>
+        <div class="center" style="font-size: 10px;">${SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date())}</div>
+    </body>
+    </html>
+    """
 }

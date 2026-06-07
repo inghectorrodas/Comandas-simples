@@ -491,4 +491,15 @@ class RestaurantViewModel(application: Application) : AndroidViewModel(applicati
             }
             .sortedByDescending { it.quantitySold }
     }
+
+    fun getStatsForClosures(closuresList: List<CashClosure>, onComplete: (List<ProductStat>) -> Unit) {
+        viewModelScope.launch {
+            val combinedItems = mutableListOf<OrderItem>()
+            for (closure in closuresList) {
+                val items = repository.getOrderItemsForClosure(closure.id)
+                combinedItems.addAll(items)
+            }
+            onComplete(computeStats(combinedItems))
+        }
+    }
 }
