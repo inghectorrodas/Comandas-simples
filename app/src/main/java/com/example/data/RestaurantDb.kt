@@ -73,7 +73,13 @@ data class CashClosure(
     val totalSales: Double,
     val totalCost: Double,
     val netProfit: Double,
-    val totalOrdersCount: Int
+    val totalOrdersCount: Int,
+    val initialCash: Double = 0.0,
+    val actualCashAtClose: Double = 0.0,
+    val expectedCashAtClose: Double = 0.0,
+    val cashSales: Double = 0.0,
+    val cardSales: Double = 0.0,
+    val transferSales: Double = 0.0
 )
 
 // ==========================================
@@ -174,7 +180,7 @@ interface RestaurantDao {
 
 @Database(
     entities = [Dish::class, Order::class, OrderItem::class, Purchase::class, CashClosure::class, CustomCategory::class],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class RestaurantDatabase : RoomDatabase() {

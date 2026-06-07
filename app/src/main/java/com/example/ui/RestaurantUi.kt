@@ -1968,6 +1968,194 @@ fun SalesTab(
     val logoType by viewModel.logoType.collectAsStateWithLifecycle()
     val restaurantLogoBase64 by viewModel.restaurantLogoBase64.collectAsStateWithLifecycle()
     val restaurantSlogan by viewModel.restaurantSlogan.collectAsStateWithLifecycle()
+    val isShiftActive by viewModel.isShiftActive.collectAsStateWithLifecycle()
+
+    if (!isShiftActive) {
+        var startCashText by remember { mutableStateOf("100.00") }
+        var stocksToSet by remember(dishes) { mutableStateOf(dishes.associate { it.id to it.dailyStock.coerceAtLeast(0) }) }
+        
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Volver", tint = MaterialTheme.colorScheme.primary)
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text(
+                         "Apertura de Turno",
+                         style = MaterialTheme.typography.titleLarge,
+                         fontWeight = FontWeight.Bold,
+                         color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                         "Sabor y Gestión - Inicie su día de venta",
+                         fontSize = 11.sp,
+                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
+            
+            // Cash box setup
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "💰 Balance Inicial de Efectivo",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        "Ingrese la cantidad de efectivo con la que inicia la caja hoy para poder cuadrar al cierre.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    OutlinedTextField(
+                        value = startCashText,
+                        onValueChange = { startCashText = it },
+                        label = { Text("Efectivo Inicial en Caja ($)") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("initial_cash_input")
+                    )
+                }
+            }
+            
+            // Stock setup card
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "📦 Existencias Iniciales de Menú (Inventario)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Establezca el stock inicial de cada platillo para este turno. Se descontará automáticamente con las ventas.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { stocksToSet = dishes.associate { it.id to 20 } },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Todo a 20", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                        OutlinedButton(
+                            onClick = { stocksToSet = dishes.associate { it.id to 50 } },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Todo a 50", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                        OutlinedButton(
+                            onClick = { stocksToSet = dishes.associate { it.id to 0 } },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Limpiar (0)", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    
+                    Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                    
+                    if (dishes.isEmpty()) {
+                        Text(
+                            "No hay platillos registrados todavía. Registre platillos en la pestaña de Almacén.",
+                            fontSize = 11.sp,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                            modifier = Modifier.padding(vertical = 10.dp)
+                        )
+                    }
+                    
+                    // Display list of items
+                    dishes.forEach { dish ->
+                        val currentQty = stocksToSet[dish.id] ?: 0
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(dish.name, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text(dish.category, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                IconButton(
+                                    onClick = {
+                                        if (currentQty > 0) {
+                                            stocksToSet = stocksToSet.toMutableMap().apply { put(dish.id, currentQty - 1) }
+                                        }
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(imageVector = Icons.Default.KeyboardArrowDown, contentDescription = "Restar", modifier = Modifier.size(18.dp))
+                                }
+                                
+                                Text("$currentQty", fontWeight = FontWeight.Black, fontSize = 13.sp)
+                                
+                                IconButton(
+                                    onClick = {
+                                        stocksToSet = stocksToSet.toMutableMap().apply { put(dish.id, currentQty + 1) }
+                                    },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(imageVector = Icons.Default.Add, contentDescription = "Sumar", modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            Button(
+                onClick = {
+                    val cashValue = startCashText.toDoubleOrNull() ?: 0.0
+                    viewModel.startShift(cashValue, stocksToSet)
+                    Toast.makeText(context, "¡Turno aperturado con éxito!", Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.fillMaxWidth().testTag("start_shift_btn"),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Aperturar Turno & Cargar Inventario 🔑", fontWeight = FontWeight.Bold)
+            }
+        }
+    } else {
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val isCompact = maxWidth < 650.dp
@@ -3749,7 +3937,8 @@ fun SalesTab(
             }
         }
     }
-}
+    }
+    }
 }
 
 // ==========================================
@@ -5184,6 +5373,10 @@ fun CierresTab(
     var selectedReportClosure by remember { mutableStateOf<CashClosure?>(null) }
     val selectedClosureDetails by viewModel.selectedClosure.collectAsStateWithLifecycle()
     val selectedClosureItems by viewModel.selectedClosureItems.collectAsStateWithLifecycle()
+    
+    val isShiftActive by viewModel.isShiftActive.collectAsStateWithLifecycle()
+    val initialCash by viewModel.initialCash.collectAsStateWithLifecycle()
+    var showCloseTurnDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
 
@@ -5236,21 +5429,23 @@ fun CierresTab(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("Caja Registradora ABIERTA", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
-                        Text("Ventas acumuladas hoy listas para corte", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        val statusText = if (isShiftActive) "Caja Registradora ABIERTA" else "Caja Registradora CERRADA"
+                        val statusDesc = if (isShiftActive) "Ventas acumuladas hoy listas para corte" else "Debe aperturar turno en la pestaña de Ventas"
+                        val statusColor = if (isShiftActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        
+                        Text(statusText, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = statusColor)
+                        Text(statusDesc, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
 
                     Button(
                         onClick = {
-                            viewModel.closeCashRegister(
-                                onSuccess = {
-                                    Toast.makeText(context, "Cierre de caja procesado con éxito", Toast.LENGTH_SHORT).show()
-                                },
-                                onError = {
-                                    Toast.makeText(context, "Imposible hacer cierre: $it", Toast.LENGTH_LONG).show()
-                                }
-                            )
+                            if (isShiftActive) {
+                                showCloseTurnDialog = true
+                            } else {
+                                Toast.makeText(context, "No hay ningún turno activo para cerrar.", Toast.LENGTH_SHORT).show()
+                            }
                         },
+                        enabled = isShiftActive,
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.testTag("trigger_closure_button")

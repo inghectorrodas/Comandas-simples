@@ -710,4 +710,100 @@ object PdfReportHelper {
             null
         }
     }
+
+    /**
+     * Generates and shares a CSV report (open in Excel/Google Sheets) with UTF-8 BOM.
+     */
+    fun shareCsvReport(
+        context: Context,
+        fileNamePrefix: String,
+        subject: String,
+        restaurantName: String,
+        dateRange: String,
+        initialCash: Double,
+        actualCashAtClose: Double,
+        expectedCashAtClose: Double,
+        totalSales: Double,
+        totalCost: Double,
+        paymentsBreakdown: Map<String, Double>,
+        orderTypesBreakdown: Map<String, Int>,
+        productStats: List<ProductStat>,
+        isWhatsAppOnly: Boolean = false
+    ) {
+        try {
+            val csvBuilder = StringBuilder()
+            // Add UTF-8 BOM so Excel opens it with correct encoding immediately!
+            csvBuilder.append('\uFEFF')
+            
+            // Header
+            csvBuilder.append("REPORTE DE CIERRE,${restaurantName.uppercase(Locale.getDefault())}\n")
+            csvBuilder.append("Período / Rango de Fecha,${dateRange}\n\n")
+            
+            // Financial Status
+            csvBuilder.append("MÉTRICAS FINANCIERAS PRINCIPALES\n")
+            csvBuilder.append("Efectivo Inicial en Caja,$${String.format(Locale.US, "%.2f", initialCash)}\n")
+            csvBuilder.append("Efectivo Esperado,$${String.format(Locale.US, "%.2f", expectedCashAtClose)}\n")
+            csvBuilder.append("Efectivo Real al Cierre,$${String.format(Locale.US, "%.2f", actualCashAtClose)}\n")
+            
+            val diff = actualCashAtClose - expectedCashAtClose
+            csvBuilder.append("Diferencia de Caja,$${String.format(Locale.US, "%.2f", diff)}\n")
+            csvBuilder.append("Ventas Brutas Totales,$${String.format(Locale.US, "%.2f", totalSales)}\n")
+            csvBuilder.append("Costo Total de Insumos,$${String.format(Locale.US, "%.2f", totalCost)}\n")
+            csvBuilder.append("Ganancia Neta,$${String.format(Locale.US, "%.2f", totalSales - totalCost)}\n\n")
+            
+            // Breakdown by Payment Methods
+            csvBuilder.append("INGRESOS POR MÉTODO DE PAGO\n")
+            csvBuilder.append("Método de Pago,Monto Recibido\n")
+            paymentsBreakdown.forEach { (method, amt) ->
+                csvBuilder.append("$method,$${String.format(Locale.US, "%.2f", amt)}\n")
+            }
+            csvBuilder.append("\n")
+            
+            // Breakdown by Order Type
+            csvBuilder.append("DISTRIBUCIÓN DE PEDIDOS\n")
+            csvBuilder.append("Canal de Venta,Cantidad de Pedidos\n")
+            orderTypesBreakdown.forEach { (type, count) ->
+                val desc = when(type) {
+                    "COMER_AQUI" -> "Mesa / Comer Aquí"
+                    "LLEVAR" -> "Verificado Para Llevar"
+                    "DOMICILIO" -> "Entrega Domicilio"
+                    else -> type
+                }
+                csvBuilder.append("$desc,$count\n")
+            }
+            csvBuilder.append("\n")
+            
+            // Item details
+            csvBuilder.append("DESGLOSE DE ARTÍCULOS VENDIDOS (INVENTARIO)\n")
+            csvBuilder.append("Platillo,Cantidad Vendida,Precio Unitario prom.,Ingresos,Costos,Utilidad neta\n")
+            productStats.forEach { stat ->
+                val unitPrice = if (stat.quantitySold > 0) stat.revenue / stat.quantitySold else 0.0
+                csvBuilder.append("\"${stat.name}\",${stat.quantitySold},$${String.format(Locale.US, "%.2f", unitPrice)},$${String.format(Locale.US, "%.2f", stat.revenue)},$${String.format(Locale.US, "%.2f", stat.cost)},$${String.format(Locale.US, "%.2f", stat.profit)}\n")
+            }
+            
+            // Save file
+            val file = File(context.cacheDir, "${fileNamePrefix}_${System.currentTimeMillis()}.csv")
+            val outputStream = FileOutputStream(file)
+            outputStream.write(csvBuilder.toString().toByteArray(Charsets.UTF_8))
+            outputStream.flush()
+            outputStream.close()
+            
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/csv"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, subject)
+                putExtra(Intent.EXTRA_TEXT, "Estimado, adjunto el reporte de cierre en formato CSV correspondiente a $restaurantName.")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                if (isWhatsAppOnly) {
+                    `package` = "com.whatsapp"
+                }
+            }
+            val ch = Intent.createChooser(intent, "Compartir Reporte CSV vía...")
+            ch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(ch)
+        } catch (e: Exception) {
+            Toast.makeText(context, "Error al generar CSV: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
 }

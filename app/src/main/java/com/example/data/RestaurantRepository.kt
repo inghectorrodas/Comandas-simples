@@ -98,7 +98,13 @@ class RestaurantRepository(private val dao: RestaurantDao) {
     // --- Cash Closures ---
     val allClosures: Flow<List<CashClosure>> = dao.getAllClosures()
 
-    suspend fun performCashClosure(dateString: String, openTime: Long, closeTime: Long): Long {
+    suspend fun performCashClosure(
+        dateString: String, 
+        openTime: Long, 
+        closeTime: Long,
+        initialCash: Double,
+        actualCashAtClose: Double
+    ): Long {
         // Query active orders (where closureId is null) to calculate sums
         val unclosedOrders = dao.getActiveOrders().first()
         if (unclosedOrders.isEmpty()) {
@@ -110,6 +116,13 @@ class RestaurantRepository(private val dao: RestaurantDao) {
         val netProfit = totalSales - totalCost
         val count = unclosedOrders.size
 
+        // Breakdown by payment methods
+        val cashSales = unclosedOrders.filter { it.paymentMethod == "Efectivo" }.sumOf { it.totalAmount }
+        val cardSales = unclosedOrders.filter { it.paymentMethod == "Tarjeta" }.sumOf { it.totalAmount }
+        val transferSales = unclosedOrders.filter { it.paymentMethod == "Transferencia" }.sumOf { it.totalAmount }
+        
+        val expectedCashAtClose = initialCash + cashSales
+
         val closure = CashClosure(
             dateString = dateString,
             openTimestamp = openTime,
@@ -117,7 +130,13 @@ class RestaurantRepository(private val dao: RestaurantDao) {
             totalSales = totalSales,
             totalCost = totalCost,
             netProfit = netProfit,
-            totalOrdersCount = count
+            totalOrdersCount = count,
+            initialCash = initialCash,
+            actualCashAtClose = actualCashAtClose,
+            expectedCashAtClose = expectedCashAtClose,
+            cashSales = cashSales,
+            cardSales = cardSales,
+            transferSales = transferSales
         )
 
         val closureId = dao.insertClosure(closure).toInt()

@@ -1,6 +1,7 @@
 package com.example.ui
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.Room
@@ -22,6 +23,50 @@ class RestaurantViewModel(application: Application) : AndroidViewModel(applicati
     .build()
 
     private val repository = RestaurantRepository(db.restaurantDao())
+
+    // --- Shift & Shift Cash management ---
+    private val shiftPrefs = application.getSharedPreferences("restaurant_shift_prefs", Context.MODE_PRIVATE)
+
+    private val _isShiftActive = MutableStateFlow(shiftPrefs.getBoolean("is_shift_active", false))
+    val isShiftActive: StateFlow<Boolean> = _isShiftActive.asStateFlow()
+
+    private val _initialCash = MutableStateFlow(shiftPrefs.getFloat("initial_cash", 100f).toDouble())
+    val initialCash: StateFlow<Double> = _initialCash.asStateFlow()
+
+    private val _shiftStartTimestamp = MutableStateFlow(shiftPrefs.getLong("shift_start_timestamp", 0L))
+    val shiftStartTimestamp: StateFlow<Long> = _shiftStartTimestamp.asStateFlow()
+
+    fun startShift(startCash: Double, startStocks: Map<Int, Int>) {
+        viewModelScope.launch {
+            // Apply starting stocks
+            startStocks.forEach { (dishId, stock) ->
+                repository.updateDishStock(dishId, stock)
+            }
+            
+            // Set shift preferences
+            shiftPrefs.edit().apply {
+                putBoolean("is_shift_active", true)
+                putFloat("initial_cash", startCash.toFloat())
+                putLong("shift_start_timestamp", System.currentTimeMillis())
+                apply()
+            }
+            _isShiftActive.value = true
+            _initialCash.value = startCash
+            _shiftStartTimestamp.value = System.currentTimeMillis()
+        }
+    }
+
+    fun endShift() {
+        shiftPrefs.edit().apply {
+            putBoolean("is_shift_active", false)
+            putFloat("initial_cash", 0f)
+            putLong("shift_start_timestamp", 0L)
+            apply()
+        }
+        _isShiftActive.value = false
+        _initialCash.value = 0.0
+        _shiftStartTimestamp.value = 0L
+    }
 
     // --- State Expositions ---
     val dishes: StateFlow<List<Dish>> = repository.allDishes.stateIn(
@@ -341,7 +386,7 @@ class RestaurantViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     // --- Cash Closures ---
-    fun closeCashRegister(onSuccess: (CashClosure) -> Unit, onError: (String) -> Unit) {
+    fun closeCashRegister(actualCashAtClose: Double, onSuccess: (CashClosure) -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
             // Find open orders
             val unclosedSales = activeOrders.value
@@ -353,14 +398,21 @@ class RestaurantViewModel(application: Application) : AndroidViewModel(applicati
             val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
             val dateStr = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
 
-            val openTime = unclosedSales.minOfOrNull { it.timestamp } ?: System.currentTimeMillis()
+            val openTime = _shiftStartTimestamp.value.takeIf { it > 0 } ?: (unclosedSales.mapNotNull { it.timestamp }.minOrNull() ?: System.currentTimeMillis())
             val closeTime = System.currentTimeMillis()
 
-            val closureId = repository.performCashClosure(dateStr, openTime, closeTime)
+            val closureId = repository.performCashClosure(
+                dateString = dateStr, 
+                openTime = openTime, 
+                closeTime = closeTime,
+                initialCash = _initialCash.value,
+                actualCashAtClose = actualCashAtClose
+            )
             if (closureId > 0) {
                 val allClosuresList = repository.allClosures.first()
                 val newlyCreated = allClosuresList.firstOrNull { it.id == closureId.toInt() }
                 if (newlyCreated != null) {
+                    endShift()
                     onSuccess(newlyCreated)
                 } else {
                     onError("Error de sincronización de cierre.")
