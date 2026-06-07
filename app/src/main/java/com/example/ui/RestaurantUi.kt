@@ -4809,9 +4809,74 @@ fun ComandasTab(
     allOrders: List<Order>,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val restaurantName by viewModel.restaurantName.collectAsStateWithLifecycle()
+    val restaurantAddress by viewModel.restaurantAddress.collectAsStateWithLifecycle()
+    val restaurantPhone by viewModel.restaurantPhone.collectAsStateWithLifecycle()
+    val logoType by viewModel.logoType.collectAsStateWithLifecycle()
+    val restaurantLogoBase64 by viewModel.restaurantLogoBase64.collectAsStateWithLifecycle()
+    val restaurantSlogan by viewModel.restaurantSlogan.collectAsStateWithLifecycle()
+
     var selectedOrderType by remember { mutableStateOf("ACTIVAS") } // "ACTIVAS", "HISTORIAL"
     var filterType by remember { mutableStateOf("TODAS") } // "TODAS", "LOCAL", "DOMICILIO"
     var showEditOrderDialog by remember { mutableStateOf<Order?>(null) }
+
+    fun localPrintTicket(order: Order, items: List<OrderItem>) {
+        val printerType = com.example.ui.BluetoothPrinterHelper.getPrinterType(context)
+        val activePrinter = com.example.ui.BluetoothPrinterHelper.getSelectedPrinter(context)
+        val receiptFormat = com.example.ui.BluetoothPrinterHelper.getReceiptFormat(context)
+        val (wifiIp, wifiPort) = com.example.ui.BluetoothPrinterHelper.getWifiPrinter(context)
+        val isSimplified = receiptFormat == "SIMPLIFIED"
+
+        if (printerType == "BLUETOOTH") {
+            val bDevice = activePrinter
+            if (bDevice != null) {
+                scope.launch {
+                    val data = com.example.ui.BluetoothPrinterHelper.buildEscPosReceipt(
+                        restaurantName, restaurantAddress, restaurantPhone, restaurantSlogan, order, items, isSimplified
+                    )
+                    val ok = com.example.ui.BluetoothPrinterHelper.printDirect(context, bDevice.address, data)
+                    if (ok) {
+                        Toast.makeText(context, "Ticket #${order.id} impreso con éxito via Bluetooth", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Error al imprimir via Bluetooth. Reintentando por impresión del sistema...", Toast.LENGTH_LONG).show()
+                        val html = generateReceiptHtml(order, items, restaurantName, restaurantAddress, restaurantPhone, logoType, restaurantLogoBase64, restaurantSlogan, isSimplified)
+                        sendToThermalPrinter(context, html)
+                    }
+                }
+            } else {
+                Toast.makeText(context, "No hay impresora Bluetooth vinculada. Usando impresión de sistema.", Toast.LENGTH_SHORT).show()
+                val html = generateReceiptHtml(order, items, restaurantName, restaurantAddress, restaurantPhone, logoType, restaurantLogoBase64, restaurantSlogan, isSimplified)
+                sendToThermalPrinter(context, html)
+            }
+        } else if (printerType == "WIFI") {
+            scope.launch {
+                val ip = wifiIp.trim()
+                val port = wifiPort
+                val data = com.example.ui.BluetoothPrinterHelper.buildEscPosReceipt(
+                    restaurantName, restaurantAddress, restaurantPhone, restaurantSlogan, order, items, isSimplified
+                )
+                val ok = com.example.ui.BluetoothPrinterHelper.printViaWifi(context, ip, port, data)
+                if (ok) {
+                    Toast.makeText(context, "Ticket #${order.id} enviado exitosamente a $ip:$port", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Error de enlace Wi-Fi. Reintentando por impresión del sistema...", Toast.LENGTH_LONG).show()
+                    val html = generateReceiptHtml(order, items, restaurantName, restaurantAddress, restaurantPhone, logoType, restaurantLogoBase64, restaurantSlogan, isSimplified)
+                    sendToThermalPrinter(context, html)
+                }
+            }
+        } else if (printerType == "USB") {
+            Toast.makeText(context, "Imprimiendo Ticket #${order.id} mediante puerto USB...", Toast.LENGTH_SHORT).show()
+            val html = generateReceiptHtml(order, items, restaurantName, restaurantAddress, restaurantPhone, logoType, restaurantLogoBase64, restaurantSlogan, isSimplified)
+            sendToThermalPrinter(context, html)
+        } else {
+            // SYSTEM PRINT (HTML)
+            val html = generateReceiptHtml(order, items, restaurantName, restaurantAddress, restaurantPhone, logoType, restaurantLogoBase64, restaurantSlogan, isSimplified)
+            sendToThermalPrinter(context, html)
+        }
+    }
 
     val displayOrders = if (selectedOrderType == "ACTIVAS") {
         activeOrders.filter {
@@ -5193,7 +5258,7 @@ fun ComandasTab(
                                                     Spacer(modifier = Modifier.width(4.dp))
                                                     Text("Eliminar", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
                                                 }
-
+ 
                                                 // 5. Compartir
                                                 OutlinedButton(
                                                     onClick = {
@@ -5219,7 +5284,7 @@ fun ComandasTab(
                                                                     appendLine("TOTAL: ${order.totalAmount.formatPrice()}")
                                                                     appendLine("=========================")
                                                                 }.toString()
-
+ 
                                                                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                                                     type = "text/plain"
                                                                     putExtra(Intent.EXTRA_TEXT, shareText)
@@ -5242,6 +5307,94 @@ fun ComandasTab(
                                                     Spacer(modifier = Modifier.width(4.dp))
                                                     Text("Compartir", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
                                                 }
+
+                                                // 6. Reimprimir Ticket
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        viewModel.loadOrderItems(order.id) { items ->
+                                                            localPrintTicket(order, items)
+                                                        }
+                                                    },
+                                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = EmeraldGreen),
+                                                    border = BorderStroke(1.dp, EmeraldGreen.copy(alpha = 0.5f)),
+                                                    modifier = Modifier.weight(1.1f).testTag("reimprimir_button")
+                                                ) {
+                                                    Icon(Icons.Default.Check, contentDescription = "Imprimir", modifier = Modifier.size(14.dp))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Imprimir", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        // Action buttons for completed/historic order
+                                        Spacer(modifier = Modifier.height(14.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            // 1. Compartir
+                                            OutlinedButton(
+                                                onClick = {
+                                                    viewModel.loadOrderItems(order.id) { items ->
+                                                        try {
+                                                            val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+                                                            val shareText = java.lang.StringBuilder().apply {
+                                                                appendLine("=== COMANDA #${order.id} ===")
+                                                                appendLine("Cliente: ${order.customerName ?: "Mostrador"}")
+                                                                if (order.isDelivery && order.deliveryAddress != null) {
+                                                                    appendLine("Entrega: ${order.deliveryAddress}")
+                                                                } else if (order.tableNumber != null) {
+                                                                    appendLine("Mesa: ${order.tableNumber}")
+                                                                } else {
+                                                                    appendLine("Tipo: Para llevar / Mostrador")
+                                                                }
+                                                                appendLine("Fecha: ${dateFormat.format(Date(order.timestamp))}")
+                                                                appendLine("-------------------------")
+                                                                items.forEach {
+                                                                    appendLine("- ${it.dishName} x${it.quantity}: ${(it.price * it.quantity).formatPrice()}")
+                                                                }
+                                                                appendLine("-------------------------")
+                                                                appendLine("TOTAL: ${order.totalAmount.formatPrice()}")
+                                                                appendLine("=========================")
+                                                            }.toString()
+
+                                                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                                type = "text/plain"
+                                                                putExtra(Intent.EXTRA_TEXT, shareText)
+                                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                            }
+                                                            val chooser = Intent.createChooser(shareIntent, "Compartir Comanda").apply {
+                                                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                            }
+                                                            context.startActivity(chooser)
+                                                        } catch (ex: Exception) {
+                                                            Toast.makeText(context, "Error al compartir comanda: ${ex.message}", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    }
+                                                },
+                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                                                modifier = Modifier.weight(1f).testTag("historial_compartir_button")
+                                            ) {
+                                                Icon(Icons.Default.Share, contentDescription = "Compartir", modifier = Modifier.size(14.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Compartir", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
+                                            }
+
+                                            // 2. Reimprimir Ticket (Historial)
+                                            OutlinedButton(
+                                                onClick = {
+                                                    viewModel.loadOrderItems(order.id) { items ->
+                                                        localPrintTicket(order, items)
+                                                    }
+                                                },
+                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = EmeraldGreen),
+                                                border = BorderStroke(1.dp, EmeraldGreen.copy(alpha = 0.5f)),
+                                                modifier = Modifier.weight(1.1f).testTag("historial_reimprimir_button")
+                                            ) {
+                                                Icon(Icons.Default.Check, contentDescription = "Reimprimir Ticket", modifier = Modifier.size(14.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Reimprimir", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1)
                                             }
                                         }
                                     }
