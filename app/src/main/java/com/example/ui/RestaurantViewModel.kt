@@ -199,7 +199,7 @@ class RestaurantViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun addDish(name: String, price: Double, cost: Double, category: String, initialStock: Int, imageBase64: String? = null) {
+    fun addDish(name: String, price: Double, cost: Double, category: String, initialStock: Int, imageBase64: String? = null, minStockThreshold: Int = 5) {
         viewModelScope.launch {
             val dish = Dish(
                 name = name,
@@ -208,7 +208,8 @@ class RestaurantViewModel(application: Application) : AndroidViewModel(applicati
                 category = category,
                 dailyStock = initialStock,
                 initialDailyStock = initialStock,
-                imageBase64 = imageBase64
+                imageBase64 = imageBase64,
+                minStockThreshold = minStockThreshold
             )
             repository.insertDish(dish)
         }

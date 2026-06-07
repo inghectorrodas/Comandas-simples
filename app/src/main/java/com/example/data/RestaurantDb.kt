@@ -16,7 +16,8 @@ data class Dish(
     val category: String,
     val dailyStock: Int,
     val initialDailyStock: Int,
-    val imageBase64: String? = null
+    val imageBase64: String? = null,
+    val minStockThreshold: Int = 5
 )
 
 @Entity(tableName = "custom_categories")

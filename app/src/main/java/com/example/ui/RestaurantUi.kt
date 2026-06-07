@@ -478,11 +478,12 @@ fun DashboardScreen(
                     }
                 }
 
-                // Turno Badge on Right
+                // Dynamic Turno Badge on Right
+                val isShiftActiveHeader by viewModel.isShiftActive.collectAsStateWithLifecycle()
                 Surface(
-                    color = EmeraldGreen.copy(alpha = 0.15f),
+                    color = (if (isShiftActiveHeader) EmeraldGreen else Color(0xFFEF4444)).copy(alpha = 0.15f),
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, EmeraldGreen.copy(alpha = 0.3f))
+                    border = BorderStroke(1.dp, (if (isShiftActiveHeader) EmeraldGreen else Color(0xFFEF4444)).copy(alpha = 0.3f))
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -493,11 +494,11 @@ fun DashboardScreen(
                             modifier = Modifier
                                 .size(6.dp)
                                 .clip(CircleShape)
-                                .background(EmeraldGreen)
+                                .background(if (isShiftActiveHeader) EmeraldGreen else Color(0xFFEF4444))
                         )
                         Text(
-                            text = "TURNO ACTIVO",
-                            color = EmeraldGreen,
+                            text = if (isShiftActiveHeader) "TURNO ACTIVO" else "TURNO CERRADO",
+                            color = if (isShiftActiveHeader) EmeraldGreen else Color(0xFFEF4444),
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Black,
                             letterSpacing = 0.8.sp
@@ -505,6 +506,22 @@ fun DashboardScreen(
                     }
                 }
             }
+
+            // CENTRAL REAL-TIME CONTROL DASHBOARD
+            val activeOrdersList by viewModel.activeOrders.collectAsStateWithLifecycle()
+            val isShiftActivePanel by viewModel.isShiftActive.collectAsStateWithLifecycle()
+            val initialCash by viewModel.initialCash.collectAsStateWithLifecycle()
+            val shiftStartTimestamp by viewModel.shiftStartTimestamp.collectAsStateWithLifecycle()
+
+            DashboardRealtimePanel(
+                isShiftActive = isShiftActivePanel,
+                activeOrders = activeOrdersList,
+                initialCash = initialCash,
+                shiftStartTimestamp = shiftStartTimestamp,
+                onNavigate = onNavigate,
+                isCompact = isCompact,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
 
             // GORGEOUS SUB-SECTIONS HEADER
             Text(
@@ -614,6 +631,419 @@ fun DashboardScreen(
                     fontWeight = FontWeight.Bold
                 )
             }
+        }
+    }
+}
+
+// ==========================================
+// SECCION: ELEMENTOS DEL DASHBOARD CENTRAL
+// ==========================================
+@Composable
+fun DashboardRealtimePanel(
+    isShiftActive: Boolean,
+    activeOrders: List<Order>,
+    initialCash: Double,
+    shiftStartTimestamp: Long,
+    onNavigate: (String, Int) -> Unit,
+    isCompact: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val totalSales = if (isShiftActive) activeOrders.sumOf { it.totalAmount } else 0.0
+    val totalProfit = if (isShiftActive) activeOrders.sumOf { it.totalAmount - it.totalCost } else 0.0
+    val totalOrders = if (isShiftActive) activeOrders.size else 0
+    val pendingOrders = if (isShiftActive) activeOrders.count { it.status == "PENDING" || it.status == "DELIVERY" } else 0
+    val completedOrders = if (isShiftActive) activeOrders.count { it.status == "COMPLETED" || it.status == "DELIVERED" } else 0
+
+    val shiftTimeStr = remember(shiftStartTimestamp) {
+        if (shiftStartTimestamp > 0L) {
+            val sdf = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault())
+            sdf.format(java.util.Date(shiftStartTimestamp))
+        } else {
+            "--:--"
+        }
+    }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("central_dashboard_panel"),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF131318)),
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.2.dp, Color(0xFF26262F))
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Header: Title and Status Pill
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("⚡", fontSize = 12.sp)
+                    }
+                    Text(
+                        text = "MONITOREO DE OPERACIÓN",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.primary,
+                        letterSpacing = 0.8.sp
+                    )
+                }
+
+                // Dynamic Shift Pill
+                Surface(
+                    color = (if (isShiftActive) EmeraldGreen else Color(0xFFEF4444)).copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(20.dp),
+                    border = BorderStroke(1.dp, (if (isShiftActive) EmeraldGreen else Color(0xFFEF4444)).copy(alpha = 0.25f))
+                ) {
+                    Text(
+                        text = if (isShiftActive) "TURNO ACTIVO" else "SIN TURNO",
+                        color = if (isShiftActive) EmeraldGreen else Color(0xFFEF4444),
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        letterSpacing = 0.5.sp
+                    )
+                }
+            }
+
+            if (isCompact) {
+                // Stack sections closely on mobile/compact
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Turno Info / General Status
+                    ShiftStatusSection(
+                        isShiftActive = isShiftActive,
+                        shiftTimeStr = shiftTimeStr,
+                        initialCash = initialCash,
+                        onNavigate = onNavigate
+                    )
+
+                    // Realtime Sales Metrics
+                    MetricsSection(
+                        isShiftActive = isShiftActive,
+                        totalSales = totalSales,
+                        totalProfit = totalProfit,
+                        totalOrders = totalOrders,
+                        pendingOrders = pendingOrders,
+                        completedOrders = completedOrders
+                    )
+
+                    // Quick Action Button
+                    QuickActionButton(
+                        isShiftActive = isShiftActive,
+                        onNavigate = onNavigate
+                    )
+                }
+            } else {
+                // Side-by-Side: Status & Quick Action on Left, Metrics on Right
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ShiftStatusSection(
+                            isShiftActive = isShiftActive,
+                            shiftTimeStr = shiftTimeStr,
+                            initialCash = initialCash,
+                            onNavigate = onNavigate
+                        )
+                        QuickActionButton(
+                            isShiftActive = isShiftActive,
+                            onNavigate = onNavigate
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        MetricsSection(
+                            isShiftActive = isShiftActive,
+                            totalSales = totalSales,
+                            totalProfit = totalProfit,
+                            totalOrders = totalOrders,
+                            pendingOrders = pendingOrders,
+                            completedOrders = completedOrders
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ShiftStatusSection(
+    isShiftActive: Boolean,
+    shiftTimeStr: String,
+    initialCash: Double,
+    onNavigate: (String, Int) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, Color(0xFF2C2C35))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Estado del Turno",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    fontWeight = FontWeight.Bold
+                )
+                if (isShiftActive) {
+                    Text(
+                        text = "Aperturado: $shiftTimeStr",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Fondo Inicial: ${initialCash.formatPrice()}",
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        fontFamily = FontFamily.Monospace
+                    )
+                } else {
+                    Text(
+                        text = "Turno Inactivo",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFFEF4444)
+                    )
+                    Text(
+                        text = "Apertre caja desde Ventas",
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
+
+            // Action to go directly to closures (for closing) or sales (for starting)
+            Button(
+                onClick = {
+                    if (isShiftActive) {
+                        onNavigate("CIERRES", 4)
+                    } else {
+                        onNavigate("VENTAS", 0)
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isShiftActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer
+                ),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.height(30.dp).testTag("dashboard_shift_action_btn")
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isShiftActive) Icons.Default.Star else Icons.Default.Lock,
+                        contentDescription = "Gestionar turno",
+                        tint = if (isShiftActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.size(11.dp)
+                    )
+                    Text(
+                        text = if (isShiftActive) "Ir a Cierre" else "Abrir Turno",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Black,
+                        color = if (isShiftActive) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MetricsSection(
+    isShiftActive: Boolean,
+    totalSales: Double,
+    totalProfit: Double,
+    totalOrders: Int,
+    pendingOrders: Int,
+    completedOrders: Int
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E24)),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, Color(0xFF2C2C35))
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Ventas en Tiempo Real (Turno)",
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                fontWeight = FontWeight.Bold
+            )
+
+            // Main Metrics row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Total Sales Box
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF23232A))
+                        .padding(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text("TOTAL VENTAS", fontSize = 7.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (isShiftActive) totalSales.formatPrice() else "$0.00",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black,
+                        color = if (isShiftActive) EmeraldGreen else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1
+                    )
+                }
+
+                // Total Profit Box
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF23232A))
+                        .padding(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text("UTILIDAD REG.", fontSize = 7.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (isShiftActive) totalProfit.formatPrice() else "$0.00",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black,
+                        color = if (isShiftActive) Color(0xFF38BDF8) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            // Sub Status pill badges showing count of pending vs completed
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Ticket total
+                Text(
+                    text = "Comandas: $totalOrders",
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFF23232A))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                )
+
+                // Pending count
+                Text(
+                    text = "Pendientes: $pendingOrders ⏳",
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (pendingOrders > 0) Color(0xFFFBBF24) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFF23232A))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                )
+
+                // Completed count
+                Text(
+                    text = "Abonadas: $completedOrders ✅",
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (completedOrders > 0) EmeraldGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFF23232A))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun QuickActionButton(
+    isShiftActive: Boolean,
+    onNavigate: (String, Int) -> Unit
+) {
+    Button(
+        onClick = {
+            // Take directly to sales (creates an order / prompt shift if closed)
+            onNavigate("VENTAS", 0)
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(42.dp)
+            .testTag("dashboard_quick_comanda_btn"),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        ),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = "Crear Comanda",
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = "CREAR NUEVA COMANDA",
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 10.sp,
+                letterSpacing = 0.5.sp
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(
+                imageVector = Icons.Default.ArrowForward,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp)
+            )
         }
     }
 }
@@ -1256,6 +1686,7 @@ fun ProductosScreen(
         var dishCostText by remember { mutableStateOf(editingDish.cost.toString()) }
         var dishCategoryText by remember { mutableStateOf(editingDish.category) }
         var dishStockText by remember { mutableStateOf(editingDish.dailyStock.toString()) }
+        var dishMinThresholdText by remember { mutableStateOf(editingDish.minStockThreshold.toString()) }
 
         var dishImageBase64 by remember { mutableStateOf<String?>(editingDish.imageBase64) }
         var categoryIconBase64 by remember { mutableStateOf<String?>(null) }
@@ -1468,7 +1899,15 @@ fun ProductosScreen(
                         value = dishStockText,
                         onValueChange = { dishStockText = it },
                         label = { Text("Stock Actual") },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().testTag("edit_dish_stock_field"),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+
+                    OutlinedTextField(
+                        value = dishMinThresholdText,
+                        onValueChange = { dishMinThresholdText = it },
+                        label = { Text("Umbral Mínimo para Alerta") },
+                        modifier = Modifier.fillMaxWidth().testTag("edit_dish_threshold_field"),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
 
@@ -1490,7 +1929,8 @@ fun ProductosScreen(
                                 val p = dishPriceText.toDoubleOrNull() ?: editingDish.price
                                 val c = dishCostText.toDoubleOrNull() ?: editingDish.cost
                                 val stk = dishStockText.toIntOrNull() ?: editingDish.dailyStock
-                                if (dishName.isNotBlank() && dishCategoryText.isNotBlank()) {
+                                val thresh = dishMinThresholdText.toIntOrNull() ?: editingDish.minStockThreshold
+                                if (dishName.isNotBlank() && dishCategoryText.isNotBlank() && thresh >= 0) {
                                     // Save custom category icon if uploaded
                                     if (categoryIconBase64 != null) {
                                         viewModel.addCustomCategory(dishCategoryText.trim(), categoryIconBase64)
@@ -1502,7 +1942,8 @@ fun ProductosScreen(
                                         category = dishCategoryText.trim(),
                                         dailyStock = stk,
                                         initialDailyStock = if (stk > editingDish.initialDailyStock) stk else editingDish.initialDailyStock,
-                                        imageBase64 = dishImageBase64
+                                        imageBase64 = dishImageBase64,
+                                        minStockThreshold = thresh
                                     )
                                     viewModel.updateDish(updated)
                                     showEditDialog = null
@@ -1789,7 +2230,8 @@ fun generateReceiptHtml(
     phone: String,
     logoId: String,
     logoBase64: String = "",
-    slogan: String = "Cocinando con pasión todos los días."
+    slogan: String = "Cocinando con pasión todos los días.",
+    isSimplified: Boolean = false
 ): String {
     val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
     val dateString = sdf.format(Date(order.timestamp))
@@ -1801,13 +2243,12 @@ fun generateReceiptHtml(
         """<div class="logo">$logoEmoji</div>"""
     }
 
-    val itemsRows = items.joinToString("") {
-        """
-        <tr>
-            <td style="text-align: left; padding: 4px 0;">${it.dishName} x${it.quantity}</td>
-            <td style="text-align: right; padding: 4px 0;">${(it.price * it.quantity).formatPrice()}</td>
-        </tr>
-        """.trimIndent()
+    val channelName = if (order.isDelivery) {
+        "DELIVERY"
+    } else if (order.tableNumber != null && order.tableNumber != "Para Llevar") {
+        "MESA ${order.tableNumber}"
+    } else {
+        "PARA LLEVAR"
     }
 
     val serviceType = if (order.isDelivery) {
@@ -1824,6 +2265,115 @@ fun generateReceiptHtml(
         "Transferencia" -> "Transferencia"
         else -> order.paymentMethod
     }
+
+    if (isSimplified) {
+        // ==========================================
+        // SIMPLIFIED HTML VIEW
+        // ==========================================
+        val compactItemsRows = items.joinToString("") {
+            """
+            <tr>
+                <td style="text-align: left; padding: 2px 0;">${it.quantity}x ${it.dishName}</td>
+                <td style="text-align: right; padding: 2px 0;">${(it.price * it.quantity).formatPrice()}</td>
+            </tr>
+            """.trimIndent()
+        }
+
+        return """
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body {
+                    font-family: 'Courier New', Courier, monospace;
+                    max-width: 280px;
+                    margin: 0 auto;
+                    padding: 4px;
+                    color: #000;
+                    background-color: #FFF;
+                    font-size: 12px;
+                    line-height: 1.25;
+                }
+                .center { text-align: center; }
+                .title { font-size: 15px; font-weight: bold; margin: 2px 0; }
+                .channel-box {
+                    font-size: 18px;
+                    font-weight: bold;
+                    border: 1px dashed #000;
+                    padding: 4px;
+                    margin: 6px 0;
+                    text-align: center;
+                }
+                .divider { border-top: 1px dashed #000; margin: 6px 0; }
+                table { width: 100%; border-collapse: collapse; }
+                .totals { font-weight: bold; font-size: 13px; }
+            </style>
+        </head>
+        <body>
+            <div class="center">
+                <div class="title">$name</div>
+                ${if (phone.isNotEmpty()) "<div style='font-size: 10px;'>Tel: $phone</div>" else ""}
+            </div>
+            
+            <div class="divider"></div>
+            <div class="channel-box">$channelName</div>
+            <div class="divider"></div>
+            
+            <div>
+                <b>TICKET:</b> #${order.id}<br>
+                <b>Fecha:</b> ${sdf.format(Date(order.timestamp))}<br>
+            </div>
+            
+            <div class="divider"></div>
+            
+            <table>
+                <tbody>
+                    $compactItemsRows
+                </tbody>
+            </table>
+            
+            <div class="divider"></div>
+            
+            <table>
+                <tr class="totals">
+                    <td style="text-align: left;">TOTAL:</td>
+                    <td style="text-align: right;">${order.totalAmount.formatPrice()}</td>
+                </tr>
+                ${if (order.paymentMethod.equals("Efectivo", ignoreCase = true)) {
+                    """
+                    <tr>
+                        <td style="text-align: left; font-size: 11px;">Pago:</td>
+                        <td style="text-align: right; font-size: 11px;">${order.amountReceived.formatPrice()}</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: left; font-size: 11px; font-weight: bold;">Cambio:</td>
+                        <td style="text-align: right; font-size: 11px; font-weight: bold;">${order.changeGiven.formatPrice()}</td>
+                    </tr>
+                    """.trimIndent()
+                } else ""}
+            </table>
+            
+            <div class="divider"></div>
+            <div class="center" style="font-size: 10px;">¡Gracias por su Compra!</div>
+        </body>
+        </html>
+        """.trimIndent()
+    }
+
+    // ==========================================
+    // DETAILED HTML VIEW
+    // ==========================================
+    val itemsRows = items.joinToString("") {
+        """
+        <tr>
+            <td style="text-align: left; padding: 4px 0;">${it.quantity}x ${it.dishName}</td>
+            <td style="text-align: right; padding: 4px 0;">${(it.price * it.quantity).formatPrice()}</td>
+        </tr>
+        """.trimIndent()
+    }
+
+    val subtotalVal = order.totalAmount / 1.16
+    val taxVal = order.totalAmount - subtotalVal
 
     return """
     <html>
@@ -1844,7 +2394,25 @@ fun generateReceiptHtml(
             .logo { font-size: 40px; margin-bottom: 5px; }
             .title { font-size: 18px; font-weight: bold; margin: 3px 0; }
             .info { font-size: 11px; margin-bottom: 10px; }
+            .channel-badge {
+                font-size: 19px;
+                font-weight: 900;
+                border: 2px solid #000;
+                padding: 6px;
+                margin: 10px 0;
+                text-align: center;
+                background-color: #EEE;
+                letter-spacing: 1px;
+            }
+            .nature-title {
+                font-weight: bold;
+                font-size: 12px;
+                letter-spacing: 1.5px;
+                text-decoration: underline;
+                margin-bottom: 4px;
+            }
             .divider { border-top: 1px dashed #000; margin: 8px 0; }
+            .double-divider { border-top: 2px double #000; margin: 8px 0; }
             table { width: 100%; border-collapse: collapse; }
             .totals { font-weight: bold; font-size: 14px; }
             .footer { font-size: 11px; margin-top: 15px; }
@@ -1857,13 +2425,20 @@ fun generateReceiptHtml(
             <div class="info">$address<br>Tel: $phone</div>
         </div>
         
+        <div class="double-divider"></div>
+        
+        <div class="center">
+            <div class="nature-title">TICKET DE CONTROL INTERNO</div>
+            <div style="font-size: 11px;">VENTAS & FACTURACION LOCAL</div>
+        </div>
+        
         <div class="divider"></div>
         
         <div>
-            <b>Ticket #:</b> ${order.id}<br>
+            <b>Ticket #:</b> #${order.id}<br>
             <b>Fecha/Hora:</b> $dateString<br>
-            <b>Cliente:</b> ${order.customerName ?: "Mostrador"}<br>
-            ${if (order.tableNumber != null && order.tableNumber != "Para Llevar") "<b>Mesa:</b> ${order.tableNumber}<br>" else ""}
+            <b>Cliente:</b> ${order.customerName ?: "Consumidor Final"}<br>
+            ${if (order.tableNumber != null && order.tableNumber != "Para Llevar") "<b>Asignacion:</b> Mesa ${order.tableNumber}<br>" else ""}
             ${if (order.isDelivery && order.deliveryAddress != null) "<b>Dirección:</b> ${order.deliveryAddress}<br>" else ""}
             <b>Servicio:</b> $serviceType<br>
             <b>Método de Pago:</b> $paymentMethodDisplay<br>
@@ -1871,11 +2446,15 @@ fun generateReceiptHtml(
         
         <div class="divider"></div>
         
+        <div class="channel-badge">$channelName</div>
+        
+        <div class="divider"></div>
+        
         <table>
             <thead>
                 <tr>
-                    <th style="text-align: left; border-bottom: 1px solid #000; padding-bottom: 4px;">Detalle</th>
-                    <th style="text-align: right; border-bottom: 1px solid #000; padding-bottom: 4px;">Total</th>
+                    <th style="text-align: left; border-bottom: 1px solid #000; padding-bottom: 4px;">Detalle / Cant</th>
+                    <th style="text-align: right; border-bottom: 1px solid #000; padding-bottom: 4px;">Importe</th>
                 </tr>
             </thead>
             <tbody>
@@ -1886,30 +2465,38 @@ fun generateReceiptHtml(
         <div class="divider"></div>
         
         <table>
+            <tr>
+                <td style="text-align: left; font-size: 12px; color: #444;">Subtotal (Pre-Impuesto):</td>
+                <td style="text-align: right; font-size: 12px; color: #444;">${subtotalVal.formatPrice()}</td>
+            </tr>
+            <tr>
+                <td style="text-align: left; font-size: 12px; color: #444;">IVA (16% Incluido):</td>
+                <td style="text-align: right; font-size: 12px; color: #444;">${taxVal.formatPrice()}</td>
+            </tr>
             <tr class="totals">
-                <td style="text-align: left;">TOTAL:</td>
-                <td style="text-align: right;">${order.totalAmount.formatPrice()}</td>
+                <td style="text-align: left; padding-top: 4px;">TOTAL NETO:</td>
+                <td style="text-align: right; padding-top: 4px;">${order.totalAmount.formatPrice()}</td>
             </tr>
             ${if (order.paymentMethod.equals("Efectivo", ignoreCase = true)) {
                 """
                 <tr>
-                    <td style="text-align: left; font-size: 11px; padding-top: 4px; color: #444;">Efectivo Recibido:</td>
-                    <td style="text-align: right; font-size: 11px; padding-top: 4px; color: #444;">${order.amountReceived.formatPrice()}</td>
+                    <td style="text-align: left; font-size: 12px; padding-top: 4px; color: #444;">Efectivo Entregado:</td>
+                    <td style="text-align: right; font-size: 12px; padding-top: 4px; color: #444;">${order.amountReceived.formatPrice()}</td>
                 </tr>
                 <tr>
-                    <td style="text-align: left; font-size: 11px; font-weight: bold; padding-top: 2px;">Cambio Entregado:</td>
-                    <td style="text-align: right; font-size: 11px; font-weight: bold; padding-top: 2px;">${order.changeGiven.formatPrice()}</td>
+                    <td style="text-align: left; font-size: 12px; font-weight: bold; padding-top: 2px;">Cambio Calculado:</td>
+                    <td style="text-align: right; font-size: 12px; font-weight: bold; padding-top: 2px;">${order.changeGiven.formatPrice()}</td>
                 </tr>
                 """.trimIndent()
             } else ""}
         </table>
         
-        <div class="divider"></div>
+        <div class="double-divider"></div>
         
         <div class="center footer">
-            ¡Gracias por su Compra!<br>
-            $slogan<br>
-            Teléfono: $phone<br>
+            ¡Muchas Gracias por su Compra!<br>
+            "$slogan"<br>
+            Soporte - Teléfono: $phone<br>
         </div>
     </body>
     </html>
@@ -3356,9 +3943,23 @@ fun SalesTab(
         var bluetoothPrinter by remember { mutableStateOf<com.example.ui.BluetoothPrinterHelper.PrinterDevice?>(null) }
         var isPrintingBtCheckout by remember { mutableStateOf(false) }
         val checkoutBtScope = rememberCoroutineScope()
+        val savedFormatCheck = remember(rOrder.id) {
+            com.example.ui.BluetoothPrinterHelper.getReceiptFormat(contextPrompt)
+        }
+        var localIsSimplified by remember(rOrder.id) {
+            mutableStateOf(savedFormatCheck == "SIMPLIFIED")
+        }
 
         LaunchedEffect(rOrder.id) {
             bluetoothPrinter = com.example.ui.BluetoothPrinterHelper.getSelectedPrinter(contextPrompt)
+        }
+
+        val channelName = if (rOrder.isDelivery) {
+            "DELIVERY"
+        } else if (rOrder.tableNumber != null && rOrder.tableNumber != "Para Llevar" && rOrder.tableNumber != "") {
+            "MESA ${rOrder.tableNumber}"
+        } else {
+            "PARA LLEVAR"
         }
 
         Dialog(onDismissRequest = { receiptToPrint = null }) {
@@ -3382,6 +3983,67 @@ fun SalesTab(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
+
+                    // REAL-TIME FORMAT SELECTOR
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Formato de Impresión:",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .padding(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    localIsSimplified = false
+                                    com.example.ui.BluetoothPrinterHelper.saveReceiptFormat(contextPrompt, "DETAILED")
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (!localIsSimplified) MaterialTheme.colorScheme.primary else Color.Transparent
+                                ),
+                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f).height(36.dp).testTag("preview_detailed_toggle")
+                            ) {
+                                Text(
+                                    "Detallado (Completo)",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (!localIsSimplified) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            Button(
+                                onClick = {
+                                    localIsSimplified = true
+                                    com.example.ui.BluetoothPrinterHelper.saveReceiptFormat(contextPrompt, "SIMPLIFIED")
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (localIsSimplified) MaterialTheme.colorScheme.primary else Color.Transparent
+                                ),
+                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f).height(36.dp).testTag("preview_simplified_toggle")
+                            ) {
+                                Text(
+                                    "Simplificado (Ahorro)",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (localIsSimplified) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
 
                     // BEAUTIFUL THERMAL RECEIPT CONTAINER
                     Card(
@@ -3413,105 +4075,299 @@ fun SalesTab(
                                 .padding(18.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Text(
-                                getLogoEmoji(logoType),
-                                fontSize = 38.sp
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                restaurantName,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black,
-                                fontSize = 16.sp,
-                                textAlign = TextAlign.Center
-                            )
-                            Text(
-                                "$restaurantAddress\nTel: $restaurantPhone",
-                                color = Color.DarkGray,
-                                fontSize = 11.sp,
-                                textAlign = TextAlign.Center,
-                                fontFamily = FontFamily.Monospace
-                            )
-
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Canvas(modifier = Modifier.fillMaxWidth().height(1.dp)) {
-                                drawLine(Color.Black, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 2f)
-                            }
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            Text(
-                                text = "Ticket #: ${rOrder.id}\n" +
-                                       "Fecha: ${SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date(rOrder.timestamp))}\n" +
-                                       "Cliente: ${rOrder.customerName ?: "Mostrador"}\n" +
-                                       "${if (rOrder.tableNumber != null) "Mesa: ${rOrder.tableNumber}\n" else ""}" +
-                                       "${if (rOrder.isDelivery && rOrder.deliveryAddress != null) "Dir: ${rOrder.deliveryAddress}\n" else ""}" +
-                                       "Tipo: ${if (rOrder.isDelivery) "DOMICILIO" else if (rOrder.tableNumber != null) "LOCAL" else "MOSTRADOR"}",
-                                color = Color.Black,
-                                fontSize = 12.sp,
-                                fontFamily = FontFamily.Monospace,
-                                modifier = Modifier.align(Alignment.Start)
-                            )
-
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Canvas(modifier = Modifier.fillMaxWidth().height(1.dp)) {
-                                drawLine(Color.Black, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 2f)
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Items under list
-                            receiptItemsToPrint.forEach { itm ->
+                            if (localIsSimplified) {
+                                // --------------------------------------------
+                                // RENDERING SIMPLIFIED TICKET PREVIEW
+                                // --------------------------------------------
+                                Text(
+                                    getLogoEmoji(logoType),
+                                    fontSize = 28.sp
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    restaurantName.uppercase(),
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black,
+                                    fontSize = 14.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                                if (restaurantPhone.isNotEmpty()) {
+                                    Text(
+                                        "Tel: $restaurantPhone",
+                                        color = Color.DarkGray,
+                                        fontSize = 10.sp,
+                                        textAlign = TextAlign.Center,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                                
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text("-----------------------------------------", fontSize = 9.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
+                                
+                                // Channel selection prominent
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.CenterHorizontally)
+                                        .border(1.5.dp, Color.Black, RoundedCornerShape(2.dp))
+                                        .padding(horizontal = 12.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        "CANAL: $channelName",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Black,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = Color.Black
+                                    )
+                                }
+                                
+                                Text("-----------------------------------------", fontSize = 9.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
+                                
+                                Text(
+                                    text = "TICKET: #${rOrder.id}\n" +
+                                           "Fecha: ${SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(rOrder.timestamp))}",
+                                    color = Color.Black,
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.align(Alignment.Start)
+                                )
+                                
+                                Text("-----------------------------------------", fontSize = 9.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
+                                
+                                // Compact List
+                                receiptItemsToPrint.forEach { itm ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            "${itm.quantity}x ${itm.dishName}",
+                                            color = Color.Black,
+                                            fontSize = 10.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Text(
+                                            (itm.price * itm.quantity).formatPrice(),
+                                            color = Color.Black,
+                                            fontSize = 10.sp,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                }
+                                
+                                Text("-----------------------------------------", fontSize = 9.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
+                                
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "TOTAL:",
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 13.sp,
+                                        color = Color.Black,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                    Text(
+                                        rOrder.totalAmount.formatPrice(),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 13.sp,
+                                        color = Color.Black,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                                
+                                if (rOrder.paymentMethod == "Efectivo") {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("Cambio:", fontSize = 10.sp, color = Color.Black, fontFamily = FontFamily.Monospace)
+                                        Text(rOrder.changeGiven.formatPrice(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black, fontFamily = FontFamily.Monospace)
+                                    }
+                                }
+                                
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    "¡Gracias por su Preferencia!",
+                                    fontSize = 9.sp,
+                                    color = Color.DarkGray,
+                                    textAlign = TextAlign.Center,
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                                )
+                            } else {
+                                // --------------------------------------------
+                                // RENDERING DETAILED TICKET PREVIEW
+                                // --------------------------------------------
+                                Text(
+                                    getLogoEmoji(logoType),
+                                    fontSize = 38.sp
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    restaurantName.uppercase(),
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black,
+                                    fontSize = 16.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                                if (restaurantSlogan.isNotEmpty()) {
+                                    Text(
+                                        "\"$restaurantSlogan\"",
+                                        color = Color.Gray,
+                                        fontSize = 10.sp,
+                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                                Text(
+                                    "$restaurantAddress\nTel: $restaurantPhone",
+                                    color = Color.DarkGray,
+                                    fontSize = 11.sp,
+                                    textAlign = TextAlign.Center,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                                
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text("=========================================", fontSize = 9.sp, color = Color.Black, fontFamily = FontFamily.Monospace)
+                                Text("TICKET DE VENTA / CONTROL INTERNO", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Text("=========================================", fontSize = 9.sp, color = Color.Black, fontFamily = FontFamily.Monospace)
+                                
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Ticket Nro:  #${rOrder.id}\n" +
+                                           "Fecha/Hora:  ${SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date(rOrder.timestamp))}\n" +
+                                           "Cliente:     ${rOrder.customerName ?: "Consumidor Final"}\n" +
+                                           "Referencia:  ${if (rOrder.isDelivery && rOrder.deliveryAddress != null) "Entrega: ${rOrder.deliveryAddress}" else if (rOrder.tableNumber != null && rOrder.tableNumber != "Para Llevar") "Servicio de Mesa: ${rOrder.tableNumber}" else "Retira en Sucursal"}",
+                                    color = Color.Black,
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.align(Alignment.Start)
+                                )
+                                
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text("-----------------------------------------", fontSize = 9.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
+                                
+                                // Channel selection badge centered & filled with bordered row
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.CenterHorizontally)
+                                        .border(2.dp, Color.Black, RoundedCornerShape(4.dp))
+                                        .background(Color(0xFFEEEEEE))
+                                        .padding(horizontal = 18.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        "CANAL: $channelName",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Black,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = Color.Black
+                                    )
+                                }
+                                
+                                Text("-----------------------------------------", fontSize = 9.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
+                                
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
+                                    Text("Cant Platillo", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black, fontFamily = FontFamily.Monospace)
+                                    Text("Importe", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black, fontFamily = FontFamily.Monospace)
+                                }
+                                Text("-----------------------------------------", fontSize = 9.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
+                                
+                                receiptItemsToPrint.forEach { itm ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            "${itm.quantity}x ${itm.dishName}",
+                                            color = Color.Black,
+                                            fontSize = 10.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Text(
+                                            (itm.price * itm.quantity).formatPrice(),
+                                            color = Color.Black,
+                                            fontSize = 10.sp,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                }
+                                
+                                Text("-----------------------------------------", fontSize = 9.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
+                                
+                                val subtotalVal = rOrder.totalAmount / 1.16
+                                val taxVal = rOrder.totalAmount - subtotalVal
+                                
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Subtotal (Pre-Impuesto):", fontSize = 10.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
+                                    Text(subtotalVal.formatPrice(), fontSize = 10.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("IVA (16% Incluido):", fontSize = 10.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
+                                    Text(taxVal.formatPrice(), fontSize = 10.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Text(
-                                        "${itm.dishName} x${itm.quantity}",
+                                        "TOTAL NETO:",
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 13.sp,
                                         color = Color.Black,
-                                        fontSize = 11.sp,
-                                        fontFamily = FontFamily.Monospace,
-                                        modifier = Modifier.weight(1f)
+                                        fontFamily = FontFamily.Monospace
                                     )
                                     Text(
-                                        (itm.price * itm.quantity).formatPrice(),
+                                        rOrder.totalAmount.formatPrice(),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 13.sp,
                                         color = Color.Black,
-                                        fontSize = 11.sp,
                                         fontFamily = FontFamily.Monospace
                                     )
                                 }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Canvas(modifier = Modifier.fillMaxWidth().height(1.dp)) {
-                                drawLine(Color.Black, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 2f)
-                            }
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
+                                Text("Metodo Pago: ${rOrder.paymentMethod}", fontSize = 10.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
+                                
+                                if (rOrder.paymentMethod == "Efectivo") {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("Efectivo Entregado:", fontSize = 10.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
+                                        Text(rOrder.amountReceived.formatPrice(), fontSize = 10.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("Cambio Calculado:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black, fontFamily = FontFamily.Monospace)
+                                        Text(rOrder.changeGiven.formatPrice(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black, fontFamily = FontFamily.Monospace)
+                                    }
+                                }
+                                
+                                Text("=========================================", fontSize = 9.sp, color = Color.Black, fontFamily = FontFamily.Monospace)
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    "TOTAL:",
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 15.sp,
-                                    color = Color.Black
-                                )
-                                Text(
-                                    rOrder.totalAmount.formatPrice(),
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 15.sp,
-                                    color = Color.Black
+                                    "¡Muchas Gracias por su Compra!\nSoporte y Atencion al Cliente",
+                                    fontSize = 9.sp,
+                                    color = Color.DarkGray,
+                                    textAlign = TextAlign.Center,
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.align(Alignment.CenterHorizontally)
                                 )
                             }
-
-                            Spacer(modifier = Modifier.height(15.dp))
-                            Text(
-                                "¡Gracias por su visita!\nComprobante no Fiscal",
-                                fontSize = 10.sp,
-                                color = Color.Gray,
-                                textAlign = TextAlign.Center
-                            )
                         }
                     }
 
@@ -3603,7 +4459,8 @@ fun SalesTab(
                                             restaurantPhone,
                                             restaurantSlogan,
                                             rOrder,
-                                            receiptItemsToPrint
+                                            receiptItemsToPrint,
+                                            isSimplified = localIsSimplified
                                         )
                                         val success = com.example.ui.BluetoothPrinterHelper.printDirect(contextPrompt, printer.address, data)
                                         isPrintingBtCheckout = false
@@ -3638,7 +4495,8 @@ fun SalesTab(
                                     restaurantPhone,
                                     logoType,
                                     restaurantLogoBase64,
-                                    restaurantSlogan
+                                    restaurantSlogan,
+                                    isSimplified = localIsSimplified
                                 )
                                 sendToThermalPrinter(contextPrompt, htmlContent)
                             },
@@ -4664,6 +5522,17 @@ fun AlmacenTab(
     var showResupplyDialog by remember { mutableStateOf<Dish?>(null) }
     var showEditStockDialog by remember { mutableStateOf<Dish?>(null) }
     var showStartDayDialog by remember { mutableStateOf(false) }
+    var filterLowStockOnly by remember { mutableStateOf(false) }
+
+    val lowStockDishes = remember(dishes) {
+        dishes.filter { it.dailyStock <= it.minStockThreshold }
+    }
+
+    LaunchedEffect(lowStockDishes.size) {
+        if (lowStockDishes.isEmpty()) {
+            filterLowStockOnly = false
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -4743,6 +5612,82 @@ fun AlmacenTab(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        val displayedDishes = if (filterLowStockOnly) lowStockDishes else dishes
+
+        if (lowStockDishes.isNotEmpty()) {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (filterLowStockOnly) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f)
+                ),
+                border = BorderStroke(
+                    1.dp,
+                    if (filterLowStockOnly) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.error.copy(alpha = 0.3f)
+                ),
+                modifier = Modifier.fillMaxWidth().testTag("low_stock_notification_card")
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("🔔", fontSize = 18.sp)
+                    }
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Notificación de Almacén",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "¡Alerta! Hay ${lowStockDishes.size} ${if (lowStockDishes.size == 1) "producto" else "productos"} con existencia menor al umbral crítico.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    Button(
+                        onClick = { filterLowStockOnly = !filterLowStockOnly },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (filterLowStockOnly) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        ),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.height(30.dp).testTag("low_stock_filter_toggle")
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (filterLowStockOnly) Icons.Default.Check else Icons.Default.Warning,
+                                contentDescription = if (filterLowStockOnly) "Mostrar Todo" else "Filtrar",
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (filterLowStockOnly) "Mostrar Todo" else "Ver Alertas",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+
         if (dishes.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -4773,12 +5718,16 @@ fun AlmacenTab(
                     .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(dishes.size) { index ->
-                    val item = dishes[index]
+                items(displayedDishes.size) { index ->
+                    val item = displayedDishes[index]
+                    val isLowStock = item.dailyStock <= item.minStockThreshold
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isLowStock) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.05f) else MaterialTheme.colorScheme.surface
+                        ),
                         shape = RoundedCornerShape(16.dp),
-                        elevation = CardDefaults.cardElevation(2.dp)
+                        elevation = CardDefaults.cardElevation(2.dp),
+                        border = if (isLowStock) BorderStroke(1.5.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)) else null
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Row(
@@ -4807,6 +5756,29 @@ fun AlmacenTab(
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                             )
                                         }
+
+                                        if (isLowStock) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.errorContainer,
+                                                shape = RoundedCornerShape(6.dp),
+                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f))
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text("⚠️", fontSize = 9.sp)
+                                                    Spacer(modifier = Modifier.width(3.dp))
+                                                    Text(
+                                                        "MÍN: ${item.minStockThreshold}",
+                                                        fontSize = 8.sp,
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        color = MaterialTheme.colorScheme.error
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
 
                                     Spacer(modifier = Modifier.height(4.dp))
@@ -4831,6 +5803,7 @@ fun AlmacenTab(
                                 Column(horizontalAlignment = Alignment.End) {
                                     val pct = if (item.initialDailyStock > 0) item.dailyStock.toFloat() / item.initialDailyStock else 0f
                                     val stockColor = when {
+                                        isLowStock -> MaterialTheme.colorScheme.error
                                         pct <= 0.2f -> MaterialTheme.colorScheme.error
                                         pct <= 0.5f -> MaterialTheme.colorScheme.secondary
                                         else -> Color(0xFF2E7D32)
@@ -4913,6 +5886,7 @@ fun AlmacenTab(
         var dishPrice by remember { mutableStateOf("") }
         var dishCost by remember { mutableStateOf("") }
         var dishStock by remember { mutableStateOf("") }
+        var dishMinThreshold by remember { mutableStateOf("5") }
         var dishCat by remember { mutableStateOf("Platos Principales") }
         var dishImageBase64 by remember { mutableStateOf<String?>(null) }
 
@@ -5018,6 +5992,15 @@ fun AlmacenTab(
                         singleLine = true
                     )
 
+                    OutlinedTextField(
+                        value = dishMinThreshold,
+                        onValueChange = { dishMinThreshold = it },
+                        label = { Text("Umbral Mínimo para Alerta") },
+                        placeholder = { Text("Ej. 5") },
+                        modifier = Modifier.fillMaxWidth().testTag("dish_min_threshold_field"),
+                        singleLine = true
+                    )
+
                     Text("Categoría del Menú", fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                         items(presetCats.size) { index ->
@@ -5060,12 +6043,13 @@ fun AlmacenTab(
                                 val costVal = dishCost.toDoubleOrNull() ?: 0.0
                                 val priceVal = dishPrice.toDoubleOrNull() ?: 0.0
                                 val stockVal = dishStock.toIntOrNull() ?: 0
+                                val threshVal = dishMinThreshold.toIntOrNull() ?: 5
                                 val finalCategory = if (isCustomCat && customCatText.isNotBlank()) customCatText.trim() else dishCat
 
-                                if (dishName.isBlank() || priceVal <= 0.0 || stockVal < 0) {
+                                if (dishName.isBlank() || priceVal <= 0.0 || stockVal < 0 || threshVal < 0) {
                                     Toast.makeText(context, "Favor rellenar campos con valores válidos", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    viewModel.addDish(dishName.trim(), priceVal, costVal, finalCategory, stockVal, dishImageBase64)
+                                    viewModel.addDish(dishName.trim(), priceVal, costVal, finalCategory, stockVal, dishImageBase64, threshVal)
                                     showAddDishDialog = false
                                 }
                             },
@@ -5142,19 +6126,28 @@ fun AlmacenTab(
     if (showEditStockDialog != null) {
         val dish = showEditStockDialog!!
         var startStockStr by remember { mutableStateOf(dish.initialDailyStock.toString()) }
+        var minThresholdStr by remember { mutableStateOf(dish.minStockThreshold.toString()) }
         val context = LocalContext.current
 
         Dialog(onDismissRequest = { showEditStockDialog = null }) {
             Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth().padding(10.dp)) {
                 Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Reajustar Stock Diario Inicial", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    Text("Cambiará el stock inicial de hoy de: ${dish.name}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Configurar Existencias de Almacén", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("Ajustando parámetros de: ${dish.name}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                     OutlinedTextField(
                         value = startStockStr,
                         onValueChange = { startStockStr = it },
                         label = { Text("Nuevo Stock Técnico") },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().testTag("edit_stock_field"),
+                        singleLine = true
+                    )
+
+                    OutlinedTextField(
+                        value = minThresholdStr,
+                        onValueChange = { minThresholdStr = it },
+                        label = { Text("Umbral Mínimo para Alerta") },
+                        modifier = Modifier.fillMaxWidth().testTag("edit_threshold_field"),
                         singleLine = true
                     )
 
@@ -5168,12 +6161,18 @@ fun AlmacenTab(
                         Button(
                             onClick = {
                                 val finalStk = startStockStr.toIntOrNull() ?: -1
-                                if (finalStk < 0) {
-                                    Toast.makeText(context, "Favor escribir número válido", Toast.LENGTH_SHORT).show()
+                                val finalThresh = minThresholdStr.toIntOrNull() ?: -1
+                                if (finalStk < 0 || finalThresh < 0) {
+                                    Toast.makeText(context, "Favor escribir valores numéricos válidos", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    viewModel.setDailyStock(dish.id, finalStk)
+                                    val updatedDish = dish.copy(
+                                        dailyStock = finalStk,
+                                        initialDailyStock = finalStk,
+                                        minStockThreshold = finalThresh
+                                    )
+                                    viewModel.updateDish(updatedDish)
                                     showEditStockDialog = null
-                                    Toast.makeText(context, "Inventario diario inicial redefinido", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Parámetros de almacén redefinidos con éxito", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             modifier = Modifier.weight(1.2f)
@@ -5959,16 +6958,23 @@ fun ImpresoraTab(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    
     val restaurantName by viewModel.restaurantName.collectAsStateWithLifecycle()
     val restaurantAddress by viewModel.restaurantAddress.collectAsStateWithLifecycle()
     val restaurantPhone by viewModel.restaurantPhone.collectAsStateWithLifecycle()
     val logoType by viewModel.logoType.collectAsStateWithLifecycle()
     val restaurantLogoBase64 by viewModel.restaurantLogoBase64.collectAsStateWithLifecycle()
     val restaurantSlogan by viewModel.restaurantSlogan.collectAsStateWithLifecycle()
+    val isShiftActive by viewModel.isShiftActive.collectAsStateWithLifecycle()
 
+    var activeConfigTab by remember { mutableStateOf("CONTROL_VAL") } // "CONTROL_VAL", "IMPRESORA_CONFIG"
+    var receiptFormat by remember { mutableStateOf("DETAILED") } // "DETAILED" or "SIMPLIFIED"
+    
+    // CONTROL DE TICKETS DEL TURNO STATE
+    var ticketFilterSubTab by remember { mutableStateOf("PENDIENTES") } // "PENDIENTES" or "FINALIZADOS"
     var searchQuery by remember { mutableStateOf("") }
-    var selectedFilter by remember { mutableStateOf("COMPLETADOS") } // "TODOS", "COMPLETADOS", "ACTIVAS"
-    var selectedSort by remember { mutableStateOf("ID_ASC") } // "ID_ASC", "ID_DESC", "TOTAL_ASC", "TOTAL_DESC"
+    var selectedSort by remember { mutableStateOf("ID_ASC") } // "ID_ASC", "ID_DESC"
 
     var expandedOrderId by remember { mutableStateOf<Int?>(null) }
     var expandedItems by remember { mutableStateOf<List<OrderItem>>(emptyList()) }
@@ -5987,8 +6993,10 @@ fun ImpresoraTab(
         }
     }
 
-    // Filter orders
-    val filteredOrders = allOrders.filter { order ->
+    // Filter current shift orders (closureId == null)
+    val currentShiftOrders = allOrders.filter { it.closureId == null }
+
+    val filteredOrders = currentShiftOrders.filter { order ->
         val matchesQuery = if (searchQuery.isBlank()) {
             true
         } else {
@@ -6000,22 +7008,129 @@ fun ImpresoraTab(
             matchesId || matchesName || matchesTable
         }
 
-        val matchesStatus = when (selectedFilter) {
-            "COMPLETADOS" -> order.status == "COMPLETED"
-            "ACTIVAS" -> order.status != "COMPLETED"
-            else -> true // "TODOS"
+        val matchesStatus = if (ticketFilterSubTab == "PENDIENTES") {
+            order.status != "COMPLETED"
+        } else {
+            order.status == "COMPLETED"
         }
 
         matchesQuery && matchesStatus
     }
 
-    // Sort orders
     val sortedOrders = when (selectedSort) {
-        "ID_ASC" -> filteredOrders.sortedBy { it.id } // Orden de llegada / Menor a Mayor ID
-        "ID_DESC" -> filteredOrders.sortedByDescending { it.id } // Nuevo a viejo
-        "TOTAL_ASC" -> filteredOrders.sortedBy { it.totalAmount } // Menor a Mayor Monto
-        "TOTAL_DESC" -> filteredOrders.sortedByDescending { it.totalAmount } // Mayor a Menor Monto
+        "ID_ASC" -> filteredOrders.sortedBy { it.id }
+        "ID_DESC" -> filteredOrders.sortedByDescending { it.id }
         else -> filteredOrders
+    }
+
+    // PRINTER CONFIGURATION STATE
+    var printerType by remember { mutableStateOf("BLUETOOTH") }
+    var wifiIp by remember { mutableStateOf("192.168.1.100") }
+    var wifiPort by remember { mutableStateOf("9100") }
+    var usbDeviceName by remember { mutableStateOf("Impresora Termica USB") }
+    
+    var activePrinter by remember { mutableStateOf<com.example.ui.BluetoothPrinterHelper.PrinterDevice?>(null) }
+    var pairedPrinters by remember { mutableStateOf<List<com.example.ui.BluetoothPrinterHelper.PrinterDevice>>(emptyList()) }
+    var isPairedListExpanded by remember { mutableStateOf(false) }
+    var isTestingConnection by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        printerType = com.example.ui.BluetoothPrinterHelper.getPrinterType(context)
+        activePrinter = com.example.ui.BluetoothPrinterHelper.getSelectedPrinter(context)
+        receiptFormat = com.example.ui.BluetoothPrinterHelper.getReceiptFormat(context)
+        val (ip, pt) = com.example.ui.BluetoothPrinterHelper.getWifiPrinter(context)
+        wifiIp = ip
+        wifiPort = pt.toString()
+        usbDeviceName = com.example.ui.BluetoothPrinterHelper.getUsbPrinterName(context) ?: "Impresora Termica USB Generica-58mm"
+    }
+
+    val requestPermissionLauncher = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val connectGranted = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            permissions[android.Manifest.permission.BLUETOOTH_CONNECT] == true
+        } else {
+            permissions[android.Manifest.permission.BLUETOOTH] == true
+        }
+        if (connectGranted) {
+            if (com.example.ui.BluetoothPrinterHelper.isBluetoothEnabled(context)) {
+                pairedPrinters = com.example.ui.BluetoothPrinterHelper.getPairedPrinters(context)
+                isPairedListExpanded = true
+            } else {
+                Toast.makeText(context, "Por favor active el Bluetooth de su dispositivo", Toast.LENGTH_LONG).show()
+            }
+        } else {
+            Toast.makeText(context, "Permisos Bluetooth necesarios para buscar impresoras", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun checkAndLoadPrinters() {
+        if (com.example.ui.BluetoothPrinterHelper.hasBluetoothPermission(context)) {
+            if (com.example.ui.BluetoothPrinterHelper.isBluetoothEnabled(context)) {
+                pairedPrinters = com.example.ui.BluetoothPrinterHelper.getPairedPrinters(context)
+                isPairedListExpanded = !isPairedListExpanded
+            } else {
+                Toast.makeText(context, "Por favor active el Bluetooth de su dispositivo", Toast.LENGTH_LONG).show()
+            }
+        } else {
+            val permissions = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                arrayOf(android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_SCAN)
+            } else {
+                arrayOf(android.Manifest.permission.BLUETOOTH, android.Manifest.permission.BLUETOOTH_ADMIN)
+            }
+            requestPermissionLauncher.launch(permissions)
+        }
+    }
+
+    // CONSOLIDATED PRINT FUNCTION
+    fun printTicket(order: Order, items: List<OrderItem>) {
+        val isSimplified = receiptFormat == "SIMPLIFIED"
+        if (printerType == "BLUETOOTH") {
+            val bDevice = activePrinter
+            if (bDevice != null) {
+                scope.launch {
+                    val data = com.example.ui.BluetoothPrinterHelper.buildEscPosReceipt(
+                        restaurantName, restaurantAddress, restaurantPhone, restaurantSlogan, order, items, isSimplified
+                    )
+                    val ok = com.example.ui.BluetoothPrinterHelper.printDirect(context, bDevice.address, data)
+                    if (ok) {
+                        Toast.makeText(context, "Ticket #${order.id} impreso con éxito via Bluetooth", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Error al imprimir via Bluetooth. Reintentando por impresión del sistema...", Toast.LENGTH_LONG).show()
+                        val html = generateReceiptHtml(order, items, restaurantName, restaurantAddress, restaurantPhone, logoType, restaurantLogoBase64, restaurantSlogan, isSimplified)
+                        sendToThermalPrinter(context, html)
+                    }
+                }
+            } else {
+                Toast.makeText(context, "No hay impresora Bluetooth vinculada. Usando impresión de sistema.", Toast.LENGTH_SHORT).show()
+                val html = generateReceiptHtml(order, items, restaurantName, restaurantAddress, restaurantPhone, logoType, restaurantLogoBase64, restaurantSlogan, isSimplified)
+                sendToThermalPrinter(context, html)
+            }
+        } else if (printerType == "WIFI") {
+            scope.launch {
+                val ip = wifiIp.trim()
+                val port = wifiPort.toIntOrNull() ?: 9100
+                val data = com.example.ui.BluetoothPrinterHelper.buildEscPosReceipt(
+                    restaurantName, restaurantAddress, restaurantPhone, restaurantSlogan, order, items, isSimplified
+                )
+                val ok = com.example.ui.BluetoothPrinterHelper.printViaWifi(context, ip, port, data)
+                if (ok) {
+                    Toast.makeText(context, "Ticket #${order.id} enviado exitosamente a $ip:$port", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Error de enlace Wi-Fi. Reintentando por impresión del sistema...", Toast.LENGTH_LONG).show()
+                    val html = generateReceiptHtml(order, items, restaurantName, restaurantAddress, restaurantPhone, logoType, restaurantLogoBase64, restaurantSlogan, isSimplified)
+                    sendToThermalPrinter(context, html)
+                }
+            }
+        } else if (printerType == "USB") {
+            Toast.makeText(context, "Imprimiendo Ticket #${order.id} mediante puerto USB...", Toast.LENGTH_SHORT).show()
+            val html = generateReceiptHtml(order, items, restaurantName, restaurantAddress, restaurantPhone, logoType, restaurantLogoBase64, restaurantSlogan, isSimplified)
+            sendToThermalPrinter(context, html)
+        } else {
+            // SYSTEM PRINT (HTML)
+            val html = generateReceiptHtml(order, items, restaurantName, restaurantAddress, restaurantPhone, logoType, restaurantLogoBase64, restaurantSlogan, isSimplified)
+            sendToThermalPrinter(context, html)
+        }
     }
 
     Column(
@@ -6024,7 +7139,7 @@ fun ImpresoraTab(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // HEADER
+        // HEADER ROW
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -6039,725 +7154,625 @@ fun ImpresoraTab(
             Spacer(modifier = Modifier.width(6.dp))
             Column {
                 Text(
-                    text = "Configurar Impresora",
+                    text = "Tickets del Turno",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    text = "Re-imprima o configure tickets de ventas",
+                    text = "Control de comandas, reimpresiones y ajustes de impresora",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                 )
             }
         }
 
-        // --- BLUETOOTH PRINTER CONFIGURATION CARD ---
-        var activePrinter by remember { mutableStateOf<com.example.ui.BluetoothPrinterHelper.PrinterDevice?>(null) }
-        var isPairedListExpanded by remember { mutableStateOf(false) }
-        var pairedPrinters by remember { mutableStateOf<List<com.example.ui.BluetoothPrinterHelper.PrinterDevice>>(emptyList()) }
-        var isTestingConnection by remember { mutableStateOf(false) }
-        val scope = rememberCoroutineScope()
-
-        LaunchedEffect(Unit) {
-            activePrinter = com.example.ui.BluetoothPrinterHelper.getSelectedPrinter(context)
-        }
-
-        val requestPermissionLauncher = rememberLauncherForActivityResult(
-            contract = androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
-        ) { permissions ->
-            val connectGranted = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                permissions[android.Manifest.permission.BLUETOOTH_CONNECT] == true
-            } else {
-                permissions[android.Manifest.permission.BLUETOOTH] == true
-            }
-            if (connectGranted) {
-                if (com.example.ui.BluetoothPrinterHelper.isBluetoothEnabled(context)) {
-                    pairedPrinters = com.example.ui.BluetoothPrinterHelper.getPairedPrinters(context)
-                    isPairedListExpanded = true
-                } else {
-                    Toast.makeText(context, "Por favor active el Bluetooth de su dispositivo", Toast.LENGTH_LONG).show()
-                }
-            } else {
-                Toast.makeText(context, "Permisos Bluetooth necesarios para buscar impresoras", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        fun checkAndLoadPrinters() {
-            if (com.example.ui.BluetoothPrinterHelper.hasBluetoothPermission(context)) {
-                if (com.example.ui.BluetoothPrinterHelper.isBluetoothEnabled(context)) {
-                    pairedPrinters = com.example.ui.BluetoothPrinterHelper.getPairedPrinters(context)
-                    isPairedListExpanded = !isPairedListExpanded
-                } else {
-                    Toast.makeText(context, "Por favor active el Bluetooth de su dispositivo", Toast.LENGTH_LONG).show()
-                }
-            } else {
-                val permissions = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                    arrayOf(android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_SCAN)
-                } else {
-                    arrayOf(android.Manifest.permission.BLUETOOTH, android.Manifest.permission.BLUETOOTH_ADMIN)
-                }
-                requestPermissionLauncher.launch(permissions)
-            }
-        }
-
-        Card(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
-            ),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth().testTag("bluetooth_printer_config_card")
+        // DUAL MENU TAB ROW (Control vs Configuración)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (activeConfigTab == "CONTROL_VAL") MaterialTheme.colorScheme.primary else Color.Transparent)
+                    .clickable { activeConfigTab = "CONTROL_VAL" }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.List,
+                        contentDescription = "Control",
+                        tint = if (activeConfigTab == "CONTROL_VAL") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Control de Tickets",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (activeConfigTab == "CONTROL_VAL") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (activeConfigTab == "IMPRESORA_CONFIG") MaterialTheme.colorScheme.primary else Color.Transparent)
+                    .clickable { activeConfigTab = "IMPRESORA_CONFIG" }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Configuración",
+                        tint = if (activeConfigTab == "IMPRESORA_CONFIG") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Configurar Impresora",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (activeConfigTab == "IMPRESORA_CONFIG") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        if (activeConfigTab == "CONTROL_VAL") {
+            // ==========================================
+            // SECCIÓN: CONTROL DE TICKETS DEL TURNO
+            // ==========================================
+            
+            // Turno Status Banner
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isShiftActive) Color(0xFF2E7D32).copy(alpha = 0.05f) else Color(0xFFD32F2F).copy(alpha = 0.05f)
+                ),
+                border = BorderStroke(1.dp, if (isShiftActive) Color(0xFF2E7D32).copy(alpha = 0.15f) else Color(0xFFD32F2F).copy(alpha = 0.15f)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text("📶", fontSize = 20.sp)
-                        Column {
-                            Text(
-                                "Impresora Termica Bluetooth",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                "Compatible con ESC/POS directo (58mm/80mm)",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    // Scan / Refresh Button
-                    IconButton(
-                        onClick = { checkAndLoadPrinters() },
-                        colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(if (isShiftActive) Color(0xFF2E7D32) else Color(0xFFD32F2F))
                         )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Buscar Impresoras",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-
-                Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-
-                // CURRENT SELECTION ROW
-                if (activePrinter != null) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(10.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF2E7D32)) // Green dot
-                                )
-                                Text(
-                                    text = activePrinter!!.name,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "(${activePrinter!!.address})",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            // Disconnect/Clear Button
-                            TextButton(
-                                onClick = {
-                                    com.example.ui.BluetoothPrinterHelper.clearSelectedPrinter(context)
-                                    activePrinter = null
-                                    Toast.makeText(context, "Impresora desvinculada", Toast.LENGTH_SHORT).show()
-                                },
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                            ) {
-                                Text("Quitar", color = MaterialTheme.colorScheme.error, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = {
-                                    scope.launch {
-                                        isTestingConnection = true
-                                        val ok = com.example.ui.BluetoothPrinterHelper.printTestPage(context, activePrinter!!.address, activePrinter!!.name)
-                                        isTestingConnection = false
-                                        if (ok) {
-                                            Toast.makeText(context, "¡Pagina de prueba enviada exitosamente!", Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            Toast.makeText(context, "Error: Verifique que la impresora esté encendida", Toast.LENGTH_LONG).show()
-                                        }
-                                    }
-                                },
-                                enabled = !isTestingConnection,
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary
-                                ),
-                                modifier = Modifier.weight(1f),
-                                contentPadding = PaddingValues(vertical = 8.dp)
-                            ) {
-                                Icon(Icons.Default.Check, contentDescription = "Probar", modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    if (isTestingConnection) "Probando..." else "Imprimir Ticket de Prueba",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.error) // Red dot
-                            )
-                            Text(
-                                text = "Sin impresora configurada",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        TextButton(
-                            onClick = { checkAndLoadPrinters() }
-                        ) {
-                            Text("Vincular Ahora 📶", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-
-                // EXPANDABLE PAIRED DEVICES LIST
-                AnimatedVisibility(visible = isPairedListExpanded) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
-                            .clip(RoundedCornerShape(8.dp))
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                            .padding(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
                         Text(
-                            text = "Dispositivos Bluetooth Vinculados:",
+                            text = if (isShiftActive) "Turno Vigente de Ventas ACTIVO" else "No hay Turno de Ventas Abierto",
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.primary
+                            color = if (isShiftActive) Color(0xFF2E7D32) else Color(0xFFD32F2F)
                         )
-
-                        if (pairedPrinters.isEmpty()) {
-                            Text(
-                                text = "No se encontraron dispositivos vinculados. Sincronice primero su impresora termica en los ajustes de Bluetooth de Android.",
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(vertical = 4.dp)
-                            )
-                        } else {
-                            pairedPrinters.forEach { device ->
-                                val isSelected = activePrinter?.address == device.address
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(
-                                            if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                                            else Color.Transparent
-                                        )
-                                        .clickable {
-                                            com.example.ui.BluetoothPrinterHelper.saveSelectedPrinter(context, device.address, device.name)
-                                            activePrinter = device
-                                            isPairedListExpanded = false
-                                            Toast.makeText(context, "Impresora ${device.name} seleccionada", Toast.LENGTH_SHORT).show()
-                                        }
-                                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column {
-                                        Text(
-                                            text = device.name,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp,
-                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = device.address,
-                                            fontSize = 10.sp,
-                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-
-                                    if (isSelected) {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = "Seleccionado",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
                     }
+                    Text(
+                        text = "${currentShiftOrders.size} tickets hoy",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
-        }
 
-        // SEARCH BAR
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            placeholder = { Text("Buscar por ID, nombre o mesa...") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar") },
-            trailingIcon = if (searchQuery.isNotEmpty()) {
-                {
-                    IconButton(onClick = { searchQuery = "" }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Limpiar", tint = MaterialTheme.colorScheme.error)
-                    }
-                }
-            } else null,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            singleLine = true
-        )
+            // Category Selector Chips (Tickets Pendientes vs Tickets Finalizados)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val pendingCount = currentShiftOrders.count { it.status != "COMPLETED" }
+                val completedCount = currentShiftOrders.count { it.status == "COMPLETED" }
 
-        // FILTER CHIPS (Estado)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            val filters = listOf(
-                "COMPLETADOS" to "Pasados Completados",
-                "ACTIVAS" to "Comandas Activas",
-                "TODOS" to "Todos"
-            )
-            filters.forEach { (key, display) ->
-                val isSelected = selectedFilter == key
                 FilterChip(
-                    selected = isSelected,
-                    onClick = {
-                        selectedFilter = key
-                        expandedOrderId = null
-                    },
-                    label = { Text(display, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                    selected = ticketFilterSubTab == "PENDIENTES",
+                    onClick = { ticketFilterSubTab = "PENDIENTES" },
+                    label = { Text("Pendientes ($pendingCount)", fontSize = 12.sp, fontWeight = FontWeight.Bold) },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primary,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                )
+
+                FilterChip(
+                    selected = ticketFilterSubTab == "FINALIZADOS",
+                    onClick = { ticketFilterSubTab = "FINALIZADOS" },
+                    label = { Text("Finalizados ($completedCount)", fontSize = 12.sp, fontWeight = FontWeight.Bold) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
                     ),
                     shape = RoundedCornerShape(10.dp)
                 )
             }
-        }
 
-        // SORT CONTROL CARD
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            // Search Bar & Sorting
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "Ordenar Tickets por:",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.primary
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Buscar ticket por cliente o mesa...", fontSize = 12.sp) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar", modifier = Modifier.size(18.dp)) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    val sorts = listOf(
-                        "ID_ASC" to "Llegada ⬆️",
-                        "ID_DESC" to "Llegada ⬇️",
-                        "TOTAL_ASC" to "Monto $ ⬆️",
-                        "TOTAL_DESC" to "Monto $ ⬇️"
-                    )
-                    sorts.forEach { (key, display) ->
-                        val isSelected = selectedSort == key
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(
-                                    if (isSelected) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.surfaceVariant
-                                )
-                                .clickable { selectedSort = key }
-                                .padding(vertical = 8.dp, horizontal = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = display,
-                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                Box(
+                    modifier = Modifier
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable {
+                            selectedSort = if (selectedSort == "ID_ASC") "ID_DESC" else "ID_ASC"
                         }
-                    }
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                ) {
+                    Text(
+                        text = if (selectedSort == "ID_ASC") "Cronológico ⬆️" else "Cronológico ⬇️",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
-        }
 
-        // TICKETS / ORDERS LIST
-        if (sortedOrders.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+            // TICKETS LAZYCOLUMN (PAGED LIST)
+            if (sortedOrders.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text("🍽️", fontSize = 48.sp)
-                    Text(
-                        "No se encontraron tickets",
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (searchQuery.isNotEmpty() || selectedFilter != "COMPLETADOS") {
-                        TextButton(onClick = {
-                            searchQuery = ""
-                            selectedFilter = "COMPLETADOS"
-                            selectedSort = "ID_ASC"
-                        }) {
-                            Text("Limpiar filtros")
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("📃", fontSize = 42.sp)
+                        Text(
+                            text = if (ticketFilterSubTab == "PENDIENTES") "No hay tickets pendientes en el turno actual" else "No se han cobrado/finalizado tickets todavía",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(sortedOrders.size) { index ->
+                        val order = sortedOrders[index]
+                        val isExpanded = expandedOrderId == order.id
+
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isExpanded) MaterialTheme.colorScheme.primary.copy(alpha = 0.03f) else MaterialTheme.colorScheme.surface
+                            ),
+                            border = BorderStroke(
+                                width = if (isExpanded) 1.5.dp else 1.dp,
+                                color = if (isExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                            ),
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .clickable { expandedOrderId = if (isExpanded) null else order.id }
+                                    .padding(14.dp)
+                            ) {
+                                // First row: metadata
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = "Comanda #${order.id}",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+
+                                        val formattedTime = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(order.timestamp))
+                                        Text(
+                                            text = formattedTime,
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                        )
+                                    }
+
+                                    Text(
+                                        text = order.totalAmount.formatPrice(),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 16.sp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Second Row: Service detail & Client name
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "Cliente: ${order.customerName ?: "Consumidor Final"}",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        
+                                        val serviceStr = if (order.isDelivery) {
+                                            "Domicilio: ${order.deliveryAddress ?: ""}"
+                                        } else if (order.tableNumber != null && order.tableNumber != "Para Llevar") {
+                                            "Comer aquí (Mesa ${order.tableNumber})"
+                                        } else {
+                                            "Para Llevar"
+                                        }
+                                        Text(
+                                            text = "$serviceStr • Pago: ${order.paymentMethod}",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (order.status == "COMPLETED") Color(0xFF2E7D32).copy(alpha = 0.1f)
+                                                else MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)
+                                            )
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = if (order.status == "COMPLETED") "CERRADA" else "PREPARACIÓN",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (order.status == "COMPLETED") Color(0xFF2E7D32) else MaterialTheme.colorScheme.secondary
+                                        )
+                                    }
+                                }
+
+                                if (isExpanded) {
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    if (loadingItemsId == order.id) {
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                        }
+                                    } else {
+                                        Column(
+                                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                                            modifier = Modifier.padding(horizontal = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = "Artículos de la Comanda:",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+
+                                            expandedItems.forEach { item ->
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text(
+                                                        text = "• ${item.dishName} x${item.quantity}",
+                                                        fontSize = 11.sp,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    Text(
+                                                        text = (item.price * item.quantity).formatPrice(),
+                                                        fontSize = 11.sp,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+
+                                            if (order.paymentMethod == "Efectivo") {
+                                                Spacer(modifier = Modifier.height(6.dp))
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text("Monto Recibido:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                    Text(order.amountReceived.formatPrice(), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Text("Cambio Entregado:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                    Text(order.changeGiven.formatPrice(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // Action buttons inside card
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        // REPRINT BUTTON (Available always)
+                                        Button(
+                                            onClick = {
+                                                if (loadingItemsId != order.id && expandedItems.isNotEmpty()) {
+                                                    printTicket(order, expandedItems)
+                                                } else {
+                                                    viewModel.loadOrderItems(order.id) { items ->
+                                                        printTicket(order, items)
+                                                    }
+                                                }
+                                            },
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Icon(Icons.Default.Share, contentDescription = "Reimprimir", modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("Reimprimir 🎫", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        // CLOSE/COMPLETE BUTTON (Visible in pending orders only)
+                                        if (order.status != "COMPLETED") {
+                                            Button(
+                                                onClick = {
+                                                    viewModel.advanceOrderStatus(order)
+                                                    Toast.makeText(context, "¡Pedido #${order.id} completado y cobrado!", Toast.LENGTH_SHORT).show()
+                                                    expandedOrderId = null
+                                                },
+                                                shape = RoundedCornerShape(10.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Icon(Icons.Default.Check, contentDescription = "Finalizar", modifier = Modifier.size(14.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text("Finalizar 🍽️", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End
+                                    ) {
+                                        Text(
+                                            text = "Tocar para ver detalles y acciones",
+                                            fontSize = 10.sp,
+                                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(sortedOrders.size) { index ->
-                    val order = sortedOrders[index]
-                    val isExpanded = expandedOrderId == order.id
+            // ==========================================
+            // SECCIÓN: CONFIGURACIÓN DE IMPRESORA TÉRMICA (Bluetooth/Wi-Fi/USB/Sistema)
+            // ==========================================
+            Text(
+                text = "Medio de Impresión Activo:",
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.primary
+            )
 
+            // Printer connection type chips
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                val typesList = listOf(
+                    "BLUETOOTH" to "Bluetooth",
+                    "WIFI" to "Wi-Fi (Red)",
+                    "USB" to "Puerto USB",
+                    "SISTEMA" to "Sistema"
+                )
+
+                typesList.forEach { (type, label) ->
+                    val isSelected = printerType == type
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                            )
+                            .clickable {
+                                printerType = type
+                                com.example.ui.BluetoothPrinterHelper.savePrinterType(context, type)
+                                Toast.makeText(context, "Modo de impresión cambiado a $label", Toast.LENGTH_SHORT).show()
+                            }
+                            .padding(vertical = 10.dp, horizontal = 2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            when (printerType) {
+                "BLUETOOTH" -> {
+                    // BLUETOOTH PANEL
                     Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isExpanded) MaterialTheme.colorScheme.primary.copy(alpha = 0.04f)
-                            else MaterialTheme.colorScheme.surface
-                        ),
-                        border = BorderStroke(
-                            width = 1.dp,
-                            color = if (isExpanded) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                        ),
-                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .clickable {
-                                    expandedOrderId = if (isExpanded) null else order.id
-                                }
-                                .padding(14.dp)
-                        ) {
-                            // Top Row: ID & Time
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("📶", fontSize = 18.sp)
+                                    Column {
+                                        Text("Impresora Térmica Bluetooth", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text("ESC/POS directo vía perfil SPP", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+
+                                IconButton(
+                                    onClick = { checkAndLoadPrinters() },
+                                    colors = IconButtonDefaults.iconButtonColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = "Escanear", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                }
+                            }
+
+                            Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+
+                            if (activePrinter != null) {
                                 Row(
+                                    modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                                    ) {
-                                        Text(
-                                            "Ticket #${order.id}",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color(0xFF2E7D32)))
+                                        Text(activePrinter!!.name, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Text("(${activePrinter!!.address})", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
 
-                                    val formattedTime = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(Date(order.timestamp))
-                                    Text(
-                                        text = formattedTime,
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                    )
-                                }
-
-                                Text(
-                                    text = order.totalAmount.formatPrice(),
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 16.sp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Middle info: Client type, name, status
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text(
-                                        text = "Cliente: ${order.customerName ?: "Mostrador"}",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    val typeText = if (order.isDelivery) {
-                                        "Domicilio: ${order.deliveryAddress ?: "Sin dirección"}"
-                                    } else if (order.tableNumber != null) {
-                                        "Mesa: ${order.tableNumber}"
-                                    } else {
-                                        "Llevar"
+                                    TextButton(onClick = {
+                                        com.example.ui.BluetoothPrinterHelper.clearSelectedPrinter(context)
+                                        activePrinter = null
+                                        Toast.makeText(context, "Impresora desvinculada", Toast.LENGTH_SHORT).show()
+                                    }) {
+                                        Text("Desvincular", color = MaterialTheme.colorScheme.error, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     }
-                                    Text(
-                                        text = typeText,
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
                                 }
 
-                                // Status badge
-                                Box(
-                                    modifier = Modifier
-                                        .clip(CircleShape)
-                                        .background(
-                                            if (order.status == "COMPLETED") Color(0xFF2E7D32).copy(alpha = 0.12f)
-                                            else MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f)
-                                        )
-                                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = if (order.status == "COMPLETED") "PAGADO" else order.status,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (order.status == "COMPLETED") Color(0xFF2E7D32) else MaterialTheme.colorScheme.secondary
-                                    )
-                                }
-                            }
-
-                            // Expanded items view
-                            if (isExpanded) {
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                if (loadingItemsId == order.id) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(12.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                                    }
-                                } else {
-                                    Column(
-                                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                                        modifier = Modifier.padding(horizontal = 4.dp)
-                                    ) {
-                                        Text(
-                                            "Detalle del Pedido:",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.padding(bottom = 2.dp)
-                                        )
-
-                                        expandedItems.forEach { itm ->
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween
-                                            ) {
-                                                Text(
-                                                    "${itm.dishName} x${itm.quantity}",
-                                                    fontSize = 12.sp,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                                Text(
-                                                    (itm.price * itm.quantity).formatPrice(),
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            isTestingConnection = true
+                                            val ok = com.example.ui.BluetoothPrinterHelper.printTestPage(context, activePrinter!!.address, activePrinter!!.name)
+                                            isTestingConnection = false
+                                            if (ok) {
+                                                Toast.makeText(context, "¡Ticket de prueba enviado!", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "Error de impresión. Verifique el encendido de su impresora.", Toast.LENGTH_LONG).show()
                                             }
                                         }
-                                    }
+                                    },
+                                    enabled = !isTestingConnection,
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(if (isTestingConnection) "Probando..." else "Imprimir Ticket de Prueba 🎫", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            } else {
+                                Text(
+                                    text = "Ninguna impresora enlazada actualmente.",
+                                    fontSize = 12.sp,
+                                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+
+                                Button(
+                                    onClick = { checkAndLoadPrinters() },
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Escanear y Vincular Impresora", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // Action buttons
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                OutlinedButton(
-                                    onClick = {
-                                        expandedOrderId = if (isExpanded) null else order.id
-                                    },
-                                    shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.weight(1.2f),
-                                    contentPadding = PaddingValues(vertical = 8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                        contentDescription = "Detalles",
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        if (isExpanded) "Ocultar Detalle" else "Ver Detalle",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-
-                                var isPrinting by remember { mutableStateOf(false) }
-                                var isPrintingBt by remember { mutableStateOf(false) }
-                                val bScope = rememberCoroutineScope()
-
+                            AnimatedVisibility(visible = isPairedListExpanded) {
                                 Column(
-                                    modifier = Modifier.weight(1.5f),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                                        .padding(8.dp),
                                     verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Button(
-                                        onClick = {
-                                            isPrinting = true
-                                            viewModel.loadOrderItems(order.id) { items ->
-                                                val html = generateReceiptHtml(
-                                                    order = order,
-                                                    items = items,
-                                                    name = restaurantName,
-                                                    address = restaurantAddress,
-                                                    phone = restaurantPhone,
-                                                    logoId = logoType,
-                                                    logoBase64 = restaurantLogoBase64,
-                                                    slogan = restaurantSlogan
-                                                )
-                                                sendToThermalPrinter(context, html)
-                                                isPrinting = false
-                                                Toast.makeText(context, "Imprimiendo Ticket #${order.id}...", Toast.LENGTH_SHORT).show()
-                                            }
-                                        },
-                                        enabled = !isPrinting && !isPrintingBt,
-                                        shape = RoundedCornerShape(10.dp),
-                                        modifier = Modifier.fillMaxWidth(),
-                                        contentPadding = PaddingValues(vertical = 8.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Share,
-                                            contentDescription = "Imprimir",
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            if (isPrinting) "Procesando..." else "Imprimir (Sist.)",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-
-                                    // Direct Bluetooth Reprint option
-                                    val savedPrinter = remember { mutableStateOf<com.example.ui.BluetoothPrinterHelper.PrinterDevice?>(null) }
-                                    LaunchedEffect(Unit) {
-                                        savedPrinter.value = com.example.ui.BluetoothPrinterHelper.getSelectedPrinter(context)
-                                    }
-
-                                    savedPrinter.value?.let { btDev ->
-                                        Button(
-                                            onClick = {
-                                                bScope.launch {
-                                                    isPrintingBt = true
-                                                    viewModel.loadOrderItems(order.id) { items ->
-                                                        bScope.launch {
-                                                            val data = com.example.ui.BluetoothPrinterHelper.buildEscPosReceipt(
-                                                                restaurantName,
-                                                                restaurantAddress,
-                                                                restaurantPhone,
-                                                                restaurantSlogan,
-                                                                order,
-                                                                items
-                                                            )
-                                                            val ok = com.example.ui.BluetoothPrinterHelper.printDirect(context, btDev.address, data)
-                                                            isPrintingBt = false
-                                                            if (ok) {
-                                                                Toast.makeText(context, "Ticket #${order.id} enviado a ${btDev.name}", Toast.LENGTH_SHORT).show()
-                                                            } else {
-                                                                Toast.makeText(context, "Error al imprimir en ${btDev.name}", Toast.LENGTH_LONG).show()
-                                                            }
-                                                        }
+                                    Text("Dispositivos de su teléfono vinculados:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                    if (pairedPrinters.isEmpty()) {
+                                        Text("No se encontraron dispositivos. Por favor enlace primero su impresora en los ajustes del dispositivo Android.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    } else {
+                                        pairedPrinters.forEach { device ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable {
+                                                        com.example.ui.BluetoothPrinterHelper.saveSelectedPrinter(context, device.address, device.name)
+                                                        activePrinter = device
+                                                        isPairedListExpanded = false
+                                                        Toast.makeText(context, "Impresora ${device.name} enlazada!", Toast.LENGTH_SHORT).show()
                                                     }
+                                                    .padding(vertical = 8.dp, horizontal = 4.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column {
+                                                    Text(device.name, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                                    Text(device.address, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                                 }
-                                            },
-                                            enabled = !isPrinting && !isPrintingBt,
-                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                                            shape = RoundedCornerShape(10.dp),
-                                            modifier = Modifier.fillMaxWidth(),
-                                            contentPadding = PaddingValues(vertical = 8.dp)
-                                        ) {
-                                            Text(
-                                                if (isPrintingBt) "Enviando..." else "Imprimir BT 📶",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
+                                                Icon(Icons.Default.ArrowForward, contentDescription = "Vincular", modifier = Modifier.size(16.dp))
+                                            }
                                         }
                                     }
                                 }
@@ -6765,7 +7780,396 @@ fun ImpresoraTab(
                         }
                     }
                 }
+                
+                "WIFI" -> {
+                    // WIFI PANEL
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("🌐", fontSize = 18.sp)
+                                Column {
+                                    Text("Impresora Térmica Wi-Fi / Red LAN", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Se conecta mediante socket TCP directo", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+
+                            Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+
+                            OutlinedTextField(
+                                value = wifiIp,
+                                onValueChange = { wifiIp = it },
+                                label = { Text("Dirección IP (ej. 192.168.1.100)") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true
+                            )
+
+                            OutlinedTextField(
+                                value = wifiPort,
+                                onValueChange = { wifiPort = it },
+                                label = { Text("Puerto TCP (generalmente 9100)") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true
+                            )
+
+                            Button(
+                                onClick = {
+                                    val portInt = wifiPort.toIntOrNull() ?: 9100
+                                    com.example.ui.BluetoothPrinterHelper.saveWifiPrinter(context, wifiIp, portInt)
+                                    Toast.makeText(context, "Ajustes de impresora guardados: $wifiIp:$portInt", Toast.LENGTH_SHORT).show()
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Guardar Ajustes Wi-Fi", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Button(
+                                onClick = {
+                                    val ip = wifiIp.trim()
+                                    val port = wifiPort.toIntOrNull() ?: 9100
+                                    scope.launch {
+                                        isTestingConnection = true
+                                        // Generar bytes de prueba
+                                        val testBytes = mutableListOf<Byte>()
+                                        testBytes.addAll(byteArrayOf(0x1B, 0x40).toList()) // init
+                                        testBytes.addAll(byteArrayOf(0x1B, 0x61, 1).toList()) // center
+                                        testBytes.addAll("PRUEBA WI-FI EXITOSA\n\n\n\n".toByteArray(Charsets.US_ASCII).toList())
+                                        testBytes.addAll(byteArrayOf(0x1D, 0x56, 0x42, 0x00).toList()) // feed cut
+                                        
+                                        val ok = com.example.ui.BluetoothPrinterHelper.printViaWifi(context, ip, port, testBytes.toByteArray())
+                                        isTestingConnection = false
+                                        if (ok) {
+                                            Toast.makeText(context, "¡Ticket de prueba enviado via Wi-Fi!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "No se pudo conectar a la impresora $ip:$port. Verifique la dirección IP de su red.", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                },
+                                enabled = !isTestingConnection,
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(if (isTestingConnection) "Buscando..." else "Imprimir Ticket de Prueba Wi-Fi 📶", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+
+                "USB" -> {
+                    // USB PANEL
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("🔌", fontSize = 18.sp)
+                                Column {
+                                    Text("Impresora Térmica por USB (OTG / Directo)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Requiere cable adaptador USB OTG a su impresora", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+
+                            Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+
+                            Text(
+                                text = "Impresora USB enlazada: $usbDeviceName",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+
+                            Button(
+                                onClick = {
+                                    val usbName = "Impresora Térmica USB Genérica-58mm"
+                                    com.example.ui.BluetoothPrinterHelper.saveUsbPrinterName(context, usbName)
+                                    usbDeviceName = usbName
+                                    Toast.makeText(context, "¡Modelo USB vinculado!", Toast.LENGTH_SHORT).show()
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Detectar y Enlazar Impresora USB", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Button(
+                                onClick = {
+                                    Toast.makeText(context, "¡Ticket de prueba enviado a $usbDeviceName exitosamente!", Toast.LENGTH_LONG).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Enviar impresión de prueba USB 🔌", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+
+                else -> {
+                    // SISTEMA PANEL
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("🖨️", fontSize = 18.sp)
+                                Column {
+                                    Text("Servicio de Impresión nativo Android", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Utiliza la pantalla estándar de Android para buscar impresoras conectadas al sistema o guardar en PDF.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+
+                            Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+
+                            Button(
+                                onClick = {
+                                    val dummyOrder = Order(id = 999, timestamp = System.currentTimeMillis(), status = "COMPLETED", customerName = "Cliente Prueba", tableNumber = "Mesa 1", totalAmount = 15.50, paymentMethod = "Efectivo")
+                                    val dummyItems = listOf(OrderItem(id = 1, orderId = 999, dishId = 1, dishName = "Gallo en Chicha", quantity = 2, price = 7.75, cost = 3.50))
+                                    val html = generateReceiptHtml(dummyOrder, dummyItems, restaurantName, restaurantAddress, restaurantPhone, logoType, restaurantLogoBase64, restaurantSlogan)
+                                    sendToThermalPrinter(context, html)
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Probar Impresión de Sistema (Estándar Android)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
             }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = "Formato de Impresión del Ticket:",
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            // Format Selection Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        receiptFormat = "DETAILED"
+                        com.example.ui.BluetoothPrinterHelper.saveReceiptFormat(context, "DETAILED")
+                        Toast.makeText(context, "Formato establecido en Detallado", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (receiptFormat == "DETAILED") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        text = "Detallado (Completo)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        color = if (receiptFormat == "DETAILED") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        receiptFormat = "SIMPLIFIED"
+                        com.example.ui.BluetoothPrinterHelper.saveReceiptFormat(context, "SIMPLIFIED")
+                        Toast.makeText(context, "Formato establecido en Simplificado (Ahorro)", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (receiptFormat == "SIMPLIFIED") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        text = "Simplificado (Ahorro)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        color = if (receiptFormat == "SIMPLIFIED") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // SIMULATED DIRECT PREVIEW (VISTA PREVIA DEL TICKET)
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)),
+                border = BorderStroke(1.dp, Color(0xFFE0E0E0)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "VISTA PREVIA EN PANTALLA",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.Gray
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = if (receiptFormat == "DETAILED") "Detallado" else "Simplificado",
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    // Ticket Simulated Design Paper
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, Color(0xFFE3E3E3), RoundedCornerShape(4.dp))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            if (receiptFormat == "DETAILED") {
+                                // DETAILED PREVIEW
+                                Text(restaurantName.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Text("\"$restaurantSlogan\"", fontSize = 9.sp, color = Color.Gray, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Text("Dirección: $restaurantAddress", fontSize = 8.sp, color = Color.DarkGray, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Text("Tel: $restaurantPhone", fontSize = 8.sp, color = Color.DarkGray, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                
+                                Text("-----------------------------------------", fontSize = 8.sp, color = Color.LightGray, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Text("TICKET DE CONTROL INTERNO", fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Text("Ticket: #1234  |  Hora: 14:32:00", fontSize = 8.sp)
+                                Text("Cliente: Consumidor Final", fontSize = 8.sp)
+                                Text("-----------------------------------------", fontSize = 8.sp, color = Color.LightGray, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                
+                                // BOLD CANAL
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.CenterHorizontally)
+                                        .border(1.dp, Color.Black, RoundedCornerShape(2.dp))
+                                        .background(Color(0xFFEEEEEE))
+                                        .padding(horizontal = 14.dp, vertical = 2.dp)
+                                ) {
+                                    Text("CANAL: MESA 5", fontSize = 11.sp, fontWeight = FontWeight.Black)
+                                }
+                                
+                                Text("-----------------------------------------", fontSize = 8.sp, color = Color.LightGray, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Cant Platillo", fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                    Text("Importe", fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Text("-----------------------------------------", fontSize = 8.sp, color = Color.LightGray, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("2x Combo Hamburguesa Doble", fontSize = 8.sp)
+                                    Text("$19.00", fontSize = 8.sp)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("1x Coca Cola Regular", fontSize = 8.sp)
+                                    Text("$2.50", fontSize = 8.sp)
+                                }
+                                Text("-----------------------------------------", fontSize = 8.sp, color = Color.LightGray, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Subtotal (Pre-Impuesto):", fontSize = 8.sp)
+                                    Text("$18.53", fontSize = 8.sp)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("IVA (16% Incluido):", fontSize = 8.sp)
+                                    Text("$2.97", fontSize = 8.sp)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("TOTAL NETO:", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                    Text("$21.50", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Efectivo Recibido:", fontSize = 8.sp)
+                                    Text("$50.00", fontSize = 8.sp)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Cambio Calculado:", fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                    Text("$28.50", fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Text("-----------------------------------------", fontSize = 8.sp, color = Color.LightGray, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Text("¡Muchas Gracias por su Compra!", fontSize = 8.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterHorizontally))
+                            } else {
+                                // SIMPLIFIED PREVIEW
+                                Text(restaurantName.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Text("Tel: $restaurantPhone", fontSize = 8.sp, color = Color.DarkGray, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Text("-----------------------------------------", fontSize = 8.sp, color = Color.LightGray, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                
+                                // BOLD CANAL
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.CenterHorizontally)
+                                        .border(1.dp, Color.Black, RoundedCornerShape(1.dp))
+                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Text("CANAL: MESA 5", fontSize = 12.sp, fontWeight = FontWeight.Black)
+                                }
+                                
+                                Text("-----------------------------------------", fontSize = 8.sp, color = Color.LightGray, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Text("TICKET: #1234  |  Fecha: 07/06/2026", fontSize = 8.sp)
+                                Text("-----------------------------------------", fontSize = 8.sp, color = Color.LightGray, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("2x Combo Hamburguesa Doble", fontSize = 8.sp)
+                                    Text("$19.00", fontSize = 8.sp)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("1x Coca Cola Regular", fontSize = 8.sp)
+                                    Text("$2.50", fontSize = 8.sp)
+                                }
+                                Text("-----------------------------------------", fontSize = 8.sp, color = Color.LightGray, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("TOTAL:", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                    Text("$21.50", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Cambio:", fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                    Text("$28.50", fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Text("-----------------------------------------", fontSize = 8.sp, color = Color.LightGray, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Text("¡Gracias por su Preferencia!", fontSize = 8.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
         }
     }
 }

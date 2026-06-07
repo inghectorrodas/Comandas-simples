@@ -29,6 +29,12 @@ object BluetoothPrinterHelper {
     private const val KEY_PRINTER_MAC = "selected_printer_mac"
     private const val KEY_PRINTER_NAME = "selected_printer_name"
 
+    private const val KEY_PRINTER_TYPE = "printer_type" // "BLUETOOTH", "WIFI", "USB"
+    private const val KEY_WIFI_IP = "printer_wifi_ip"
+    private const val KEY_WIFI_PORT = "printer_wifi_port"
+    private const val KEY_USB_NAME = "printer_usb_name"
+    private const val KEY_RECEIPT_FORMAT = "receipt_format" // "SIMPLIFIED", "DETAILED"
+
     /**
      * Data class to represent a Bluetooth device for selection UI
      */
@@ -126,6 +132,80 @@ object BluetoothPrinterHelper {
         }
     }
 
+    fun getPrinterType(context: Context): String {
+        val sharedPref = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return sharedPref.getString(KEY_PRINTER_TYPE, "BLUETOOTH") ?: "BLUETOOTH"
+    }
+
+    fun savePrinterType(context: Context, type: String) {
+        val sharedPref = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        sharedPref.edit().putString(KEY_PRINTER_TYPE, type).apply()
+    }
+
+    fun getWifiPrinter(context: Context): Pair<String, Int> {
+        val sharedPref = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val ip = sharedPref.getString(KEY_WIFI_IP, "192.168.1.100") ?: "192.168.1.100"
+        val port = sharedPref.getInt(KEY_WIFI_PORT, 9100)
+        return Pair(ip, port)
+    }
+
+    fun saveWifiPrinter(context: Context, ip: String, port: Int) {
+        val sharedPref = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        sharedPref.edit().putString(KEY_WIFI_IP, ip).putInt(KEY_WIFI_PORT, port).apply()
+    }
+
+    fun getUsbPrinterName(context: Context): String? {
+        val sharedPref = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return sharedPref.getString(KEY_USB_NAME, null)
+    }
+
+    fun saveUsbPrinterName(context: Context, name: String) {
+        val sharedPref = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        sharedPref.edit().putString(KEY_USB_NAME, name).apply()
+    }
+
+    fun clearUsbPrinter(context: Context) {
+        val sharedPref = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        sharedPref.edit().remove(KEY_USB_NAME).apply()
+    }
+
+    fun getReceiptFormat(context: Context): String {
+        val sharedPref = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return sharedPref.getString(KEY_RECEIPT_FORMAT, "DETAILED") ?: "DETAILED"
+    }
+
+    fun saveReceiptFormat(context: Context, format: String) {
+        val sharedPref = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        sharedPref.edit().putString(KEY_RECEIPT_FORMAT, format).apply()
+    }
+
+    /**
+     * Establishes a TCP socket connection and transmits standard ESC/POS bytes asynchronously via Wi-Fi.
+     */
+    suspend fun printViaWifi(context: Context, ip: String, port: Int, printData: ByteArray): Boolean = withContext(Dispatchers.IO) {
+        var socket: java.net.Socket? = null
+        var outputStream: java.io.OutputStream? = null
+        var success = false
+        try {
+            socket = java.net.Socket()
+            socket.connect(java.net.InetSocketAddress(ip, port), 4000) // 4 seconds timeout
+            outputStream = socket.getOutputStream()
+            outputStream.write(printData)
+            outputStream.flush()
+            success = true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error printing via Wi-Fi to $ip:$port", e)
+        } finally {
+            try {
+                outputStream?.close()
+                socket?.close()
+            } catch (t: Throwable) {
+                // Ignore
+            }
+        }
+        return@withContext success
+    }
+
     /**
      * Clean accents and special characters to display perfectly without gibberish on termal printers.
      */
@@ -160,7 +240,8 @@ object BluetoothPrinterHelper {
         restaurantPhone: String,
         restaurantSlogan: String,
         order: Order,
-        items: List<OrderItem>
+        items: List<OrderItem>,
+        isSimplified: Boolean = false
     ): ByteArray {
         val bytes = mutableListOf<Byte>()
 
@@ -195,81 +276,165 @@ object BluetoothPrinterHelper {
             bytes.addAll("--------------------------------\n".toByteArray(Charsets.US_ASCII).toList())
         }
 
+        fun addDoubleSeparator() {
+            bytes.addAll(CMD_ALIGN_LEFT.toList())
+            bytes.addAll(FONT_NORMAL.toList())
+            bytes.addAll("================================\n".toByteArray(Charsets.US_ASCII).toList())
+        }
+
         // Initialize Printer
         bytes.addAll(CMD_INIT.toList())
 
-        // Header (centered & bold double height)
-        addTextLine(restaurantName.uppercase(Locale.getDefault()), CMD_ALIGN_CENTER, FONT_BOLD_DOUBLE)
-        if (restaurantSlogan.isNotEmpty()) {
-            addTextLine(restaurantSlogan, CMD_ALIGN_CENTER, FONT_NORMAL)
+        val channelName = if (order.isDelivery) {
+            "DELIVERY"
+        } else if (order.tableNumber != null && order.tableNumber != "Para Llevar") {
+            "MESA ${order.tableNumber}"
+        } else {
+            "PARA LLEVAR"
         }
-        if (restaurantAddress.isNotEmpty()) {
-            addTextLine("Dir: $restaurantAddress", CMD_ALIGN_CENTER, FONT_NORMAL)
-        }
-        if (restaurantPhone.isNotEmpty()) {
-            addTextLine("Tel: $restaurantPhone", CMD_ALIGN_CENTER, FONT_NORMAL)
-        }
-        
-        addSeparator()
 
-        // Ticket Details
-        addTextLine("TICKET DE VENTA N: #${order.id}", CMD_ALIGN_LEFT, FONT_BOLD)
-        
-        val formatDateTime = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
-        val dateString = formatDateTime.format(Date(order.timestamp))
-        addTextLine("Fecha: $dateString", CMD_ALIGN_LEFT, FONT_NORMAL)
-        
-        val modeStr = if (order.isDelivery) "Domi: ${order.deliveryAddress ?: ""}" else if (order.tableNumber != null) "Mesa: ${order.tableNumber}" else "Para Llevar"
-        addTextLine("Servicio: $modeStr", CMD_ALIGN_LEFT, FONT_NORMAL)
-        addTextLine("Cliente: ${order.customerName ?: "Mostrador"}", CMD_ALIGN_LEFT, FONT_NORMAL)
-        addTextLine("Estado: ${if (order.status == "PENDING") "PND (Cocina)" else "Completado"}", CMD_ALIGN_LEFT, FONT_NORMAL)
-        
-        addSeparator()
+        if (isSimplified) {
+            // ==========================================
+            // SIMPLIFIED TICKET
+            // ==========================================
+            // Centered Header
+            addTextLine(restaurantName.uppercase(Locale.getDefault()), CMD_ALIGN_CENTER, FONT_BOLD)
+            if (restaurantPhone.isNotEmpty()) {
+                addTextLine("Tel: $restaurantPhone", CMD_ALIGN_CENTER, FONT_NORMAL)
+            }
+            addSeparator()
 
-        // Items Header Row
-        // Column mapping: Qty (3) Name (18) Subtotal (9) -> totals 30 characters plus spacing
-        addTextLine("Cant  Platillo          Subtot", CMD_ALIGN_LEFT, FONT_BOLD)
-        addSeparator()
+            // Large Bold Channel Assignment
+            addTextLine(channelName, CMD_ALIGN_CENTER, FONT_BOLD_DOUBLE)
+            addSeparator()
 
-        // Items Rows
-        items.forEach { item ->
-            // Format line beautifully
-            val qtyStr = "${item.quantity}x".padEnd(5) // (5 chars)
-            val cleanName = sanitizeSpanishText(item.dishName)
-            val subtotalDouble = item.price * item.quantity
-            val subtotalStr = String.format(Locale.US, "$%.2f", subtotalDouble)
+            // Essential sales metadata
+            addTextLine("TICKET #${order.id}", CMD_ALIGN_LEFT, FONT_BOLD)
+            val formatDateTime = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+            addTextLine("Fecha: ${formatDateTime.format(Date(order.timestamp))}", CMD_ALIGN_LEFT, FONT_NORMAL)
+            addSeparator()
 
-            // If name is too long, wrap or truncate it for 58mm layout
-            val maxNameChar = 16
-            val finalName = if (cleanName.length > maxNameChar) cleanName.substring(0, maxNameChar) else cleanName.padEnd(maxNameChar)
+            // Compact purchase details (Simple qty and names on one line)
+            items.forEach { item ->
+                val qtyStr = "${item.quantity}x ".padEnd(4)
+                val cleanName = sanitizeSpanishText(item.dishName)
+                val totalDouble = item.price * item.quantity
+                val priceStr = String.format(Locale.US, "$%.2f", totalDouble)
+
+                // Limit characters to avoid wrap issues in 58mm
+                val maxNameLength = 18
+                val displayName = if (cleanName.length > maxNameLength) cleanName.substring(0, maxNameLength) else cleanName.padEnd(maxNameLength)
+                addTextLine(qtyStr + displayName + priceStr.padStart(10), CMD_ALIGN_LEFT, FONT_NORMAL)
+            }
+            addSeparator()
+
+            // Shorter totals area
+            val totalFormatted = String.format(Locale.US, "$%.2f", order.totalAmount)
+            addTextLine("TOTAL: $totalFormatted", CMD_ALIGN_RIGHT, FONT_BOLD)
+            addTextLine("Pago: ${order.paymentMethod}", CMD_ALIGN_RIGHT, FONT_NORMAL)
+
+            if (order.paymentMethod == "Efectivo") {
+                val chgFormatted = String.format(Locale.US, "$%.2f", order.changeGiven)
+                addTextLine("Cambio: $chgFormatted", CMD_ALIGN_RIGHT, FONT_BOLD)
+            }
+
+            addSeparator()
+            addTextLine("¡Gracias por su Preferencia!", CMD_ALIGN_CENTER, FONT_NORMAL)
+        } else {
+            // ==========================================
+            // DETAILED TICKET
+            // ==========================================
+            // 1. ENCABEZADO COMERCIAL
+            addTextLine(restaurantName.uppercase(Locale.getDefault()), CMD_ALIGN_CENTER, FONT_BOLD_DOUBLE)
+            if (restaurantSlogan.isNotEmpty()) {
+                addTextLine("\"$restaurantSlogan\"", CMD_ALIGN_CENTER, FONT_NORMAL)
+            }
+            if (restaurantAddress.isNotEmpty()) {
+                addTextLine("Dir: $restaurantAddress", CMD_ALIGN_CENTER, FONT_NORMAL)
+            }
+            if (restaurantPhone.isNotEmpty()) {
+                addTextLine("Tel: $restaurantPhone", CMD_ALIGN_CENTER, FONT_NORMAL)
+            }
+            addDoubleSeparator()
+
+            // 2. IDENTIFICACION FISCAL (DOCUMENT NATURE, METADATA & CHANNEL)
+            addTextLine("DOCUMENTO DE CONTROL INTERNO", CMD_ALIGN_CENTER, FONT_BOLD)
+            addTextLine("--- TICKET DE VENTA ---", CMD_ALIGN_CENTER, FONT_NORMAL)
+            addNewLine()
+
+            val formatDateTime = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+            val dateString = formatDateTime.format(Date(order.timestamp))
+            addTextLine("Ticket Nro:  #${order.id}", CMD_ALIGN_LEFT, FONT_BOLD)
+            addTextLine("Fecha/Hora:  $dateString", CMD_ALIGN_LEFT, FONT_NORMAL)
+            addTextLine("Cliente:     ${order.customerName ?: "Consumidor Final"}", CMD_ALIGN_LEFT, FONT_NORMAL)
             
-            val rightPaddedSubtotal = subtotalStr.padStart(9) // (9 chars)
-            val line = qtyStr + finalName + rightPaddedSubtotal
+            val detailService = if (order.isDelivery) {
+                "Entrega a Domicilio: ${order.deliveryAddress ?: ""}"
+            } else if (order.tableNumber != null && order.tableNumber != "Para Llevar") {
+                "Servicio de Mesa: ${order.tableNumber}"
+            } else {
+                "Retira en Sucursal"
+            }
+            addTextLine("Referencia:  $detailService", CMD_ALIGN_LEFT, FONT_NORMAL)
+            addSeparator()
+
+            // LARGE BOLD CHANNEL ROW (CANAL DE ASIGNACION)
+            addTextLine("CANAL: $channelName", CMD_ALIGN_CENTER, FONT_BOLD_DOUBLE)
+            addSeparator()
+
+            // 3. DETALLE DE COMPRA TABULAR
+            // Columns: Cant (5) Platillo (17) Importe (10)
+            addTextLine("Cant  Platillo          Importe", CMD_ALIGN_LEFT, FONT_BOLD)
+            addSeparator()
+
+            items.forEach { item ->
+                val qtyStr = "${item.quantity}x".padEnd(5)
+                val cleanName = sanitizeSpanishText(item.dishName)
+                val totalDouble = item.price * item.quantity
+                val priceStr = String.format(Locale.US, "$%.2f", totalDouble)
+
+                val maxNameChar = 17
+                val finalName = if (cleanName.length > maxNameChar) cleanName.substring(0, maxNameChar) else cleanName.padEnd(maxNameChar)
+                val line = qtyStr + finalName + priceStr.padStart(10)
+                
+                bytes.addAll(CMD_ALIGN_LEFT.toList())
+                bytes.addAll(FONT_NORMAL.toList())
+                bytes.addAll((line + "\n").toByteArray(Charsets.US_ASCII).toList())
+            }
+            addSeparator()
+
+            // 4. CUERPO FINANCIERO (SUBTOTAL, TAXES & PAYMENTS)
+            // Simulating a standard tax (e.g. 16% IVA included)
+            val subtotalVal = order.totalAmount / 1.16
+            val taxVal = order.totalAmount - subtotalVal
             
-            bytes.addAll(CMD_ALIGN_LEFT.toList())
-            bytes.addAll(FONT_NORMAL.toList())
-            bytes.addAll((line + "\n").toByteArray(Charsets.US_ASCII).toList())
+            val subtotalFormatted = String.format(Locale.US, "$%.2f", subtotalVal)
+            val taxFormatted = String.format(Locale.US, "$%.2f", taxVal)
+            val totalFormatted = String.format(Locale.US, "$%.2f", order.totalAmount)
+
+            addTextLine("Subtotal (Pre-Impuesto):  $subtotalFormatted", CMD_ALIGN_RIGHT, FONT_NORMAL)
+            addTextLine("IVA (16% Incluido):       $taxFormatted", CMD_ALIGN_RIGHT, FONT_NORMAL)
+            addTextLine("TOTAL NETO A PAGAR:       $totalFormatted", CMD_ALIGN_RIGHT, FONT_BOLD)
+            addTextLine("Metodo de Pago: ${order.paymentMethod}", CMD_ALIGN_RIGHT, FONT_NORMAL)
+
+            if (order.paymentMethod == "Efectivo") {
+                val recFormatted = String.format(Locale.US, "$%.2f", order.amountReceived)
+                val chgFormatted = String.format(Locale.US, "$%.2f", order.changeGiven)
+                addTextLine("Efectivo Recibido:  $recFormatted", CMD_ALIGN_RIGHT, FONT_NORMAL)
+                addTextLine("Cambio Calculado:   $chgFormatted", CMD_ALIGN_RIGHT, FONT_BOLD)
+            }
+            addDoubleSeparator()
+
+            // 5. CIERRE / PIE DE TICKET
+            addTextLine("¡Gracias por su Compra y Visita!", CMD_ALIGN_CENTER, FONT_BOLD)
+            if (restaurantSlogan.isNotEmpty()) {
+                addTextLine(restaurantSlogan, CMD_ALIGN_CENTER, FONT_NORMAL)
+            }
+            addTextLine("Soporte y Atencion al Cliente", CMD_ALIGN_CENTER, FONT_NORMAL)
+            if (restaurantPhone.isNotEmpty()) {
+                addTextLine("Comentarios: $restaurantPhone", CMD_ALIGN_CENTER, FONT_NORMAL)
+            }
         }
-
-        addSeparator()
-
-        // Totals
-        val totalFormatted = String.format(Locale.US, "$%.2f", order.totalAmount)
-        addTextLine("TOTAL A PAGAR:    $totalFormatted", CMD_ALIGN_RIGHT, FONT_BOLD)
-        addTextLine("Metodo de Pago: ${order.paymentMethod}", CMD_ALIGN_RIGHT, FONT_NORMAL)
-
-        if (order.paymentMethod == "Efectivo") {
-            val recFormatted = String.format(Locale.US, "$%.2f", order.amountReceived)
-            val chgFormatted = String.format(Locale.US, "$%.2f", order.changeGiven)
-            addTextLine("Recibido:    $recFormatted", CMD_ALIGN_RIGHT, FONT_NORMAL)
-            addTextLine("Cambio:      $chgFormatted", CMD_ALIGN_RIGHT, FONT_NORMAL)
-        }
-
-        addSeparator()
-
-        // Footer
-        addTextLine("GRACIAS POR SU PREFERENCIA", CMD_ALIGN_CENTER, FONT_BOLD)
-        addTextLine("Sabor y Gestion - Panes con Gallina", CMD_ALIGN_CENTER, FONT_NORMAL)
         
         // Feed lines to clear cutter and cut
         addNewLine()
