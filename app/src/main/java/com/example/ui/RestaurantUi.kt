@@ -58,6 +58,7 @@ import com.example.data.*
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.launch
 
 fun uriToBase64(context: Context, uri: Uri): String? {
     return try {
@@ -3164,6 +3165,13 @@ fun SalesTab(
     if (receiptToPrint != null) {
         val rOrder = receiptToPrint!!
         val contextPrompt = LocalContext.current
+        var bluetoothPrinter by remember { mutableStateOf<com.example.ui.BluetoothPrinterHelper.PrinterDevice?>(null) }
+        var isPrintingBtCheckout by remember { mutableStateOf(false) }
+        val checkoutBtScope = rememberCoroutineScope()
+
+        LaunchedEffect(rOrder.id) {
+            bluetoothPrinter = com.example.ui.BluetoothPrinterHelper.getSelectedPrinter(contextPrompt)
+        }
 
         Dialog(onDismissRequest = { receiptToPrint = null }) {
             Surface(
@@ -3395,7 +3403,43 @@ fun SalesTab(
                             }
                         }
 
-                        // THERMAL PRINT BUTTON
+                        // BLUETOOTH PRINT OPTION IF ACTIVE
+                        bluetoothPrinter?.let { printer ->
+                            Button(
+                                onClick = {
+                                    checkoutBtScope.launch {
+                                        isPrintingBtCheckout = true
+                                        val data = com.example.ui.BluetoothPrinterHelper.buildEscPosReceipt(
+                                            restaurantName,
+                                            restaurantAddress,
+                                            restaurantPhone,
+                                            restaurantSlogan,
+                                            rOrder,
+                                            receiptItemsToPrint
+                                        )
+                                        val success = com.example.ui.BluetoothPrinterHelper.printDirect(contextPrompt, printer.address, data)
+                                        isPrintingBtCheckout = false
+                                        if (success) {
+                                            Toast.makeText(contextPrompt, "¡Ticket enviado a ${printer.name}!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(contextPrompt, "Error: Conexión fallida con ${printer.name}", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                },
+                                enabled = !isPrintingBtCheckout,
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth().testTag("dialog_print_bluetooth_button")
+                            ) {
+                                Text(
+                                    if (isPrintingBtCheckout) "Enviando a bluetooth..." else "Imprimir por Bluetooth 📶 (${printer.name})",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+
+                        // THERMAL PRINT BUTTON (SYSTEM)
                         Button(
                             onClick = {
                                 val htmlContent = generateReceiptHtml(
@@ -3410,13 +3454,14 @@ fun SalesTab(
                                 )
                                 sendToThermalPrinter(contextPrompt, htmlContent)
                             },
+                            enabled = !isPrintingBtCheckout,
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth().testTag("dialog_print_ticket_button")
                         ) {
                             Icon(Icons.Default.Check, contentDescription = "Imprimir", modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Imprimir Factura (Ticket Física)", fontWeight = FontWeight.Bold)
+                            Text("Imprimir por Sistema (Mopria/PDF)", fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -5812,6 +5857,299 @@ fun ImpresoraTab(
             }
         }
 
+        // --- BLUETOOTH PRINTER CONFIGURATION CARD ---
+        var activePrinter by remember { mutableStateOf<com.example.ui.BluetoothPrinterHelper.PrinterDevice?>(null) }
+        var isPairedListExpanded by remember { mutableStateOf(false) }
+        var pairedPrinters by remember { mutableStateOf<List<com.example.ui.BluetoothPrinterHelper.PrinterDevice>>(emptyList()) }
+        var isTestingConnection by remember { mutableStateOf(false) }
+        val scope = rememberCoroutineScope()
+
+        LaunchedEffect(Unit) {
+            activePrinter = com.example.ui.BluetoothPrinterHelper.getSelectedPrinter(context)
+        }
+
+        val requestPermissionLauncher = rememberLauncherForActivityResult(
+            contract = androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+        ) { permissions ->
+            val connectGranted = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                permissions[android.Manifest.permission.BLUETOOTH_CONNECT] == true
+            } else {
+                permissions[android.Manifest.permission.BLUETOOTH] == true
+            }
+            if (connectGranted) {
+                if (com.example.ui.BluetoothPrinterHelper.isBluetoothEnabled(context)) {
+                    pairedPrinters = com.example.ui.BluetoothPrinterHelper.getPairedPrinters(context)
+                    isPairedListExpanded = true
+                } else {
+                    Toast.makeText(context, "Por favor active el Bluetooth de su dispositivo", Toast.LENGTH_LONG).show()
+                }
+            } else {
+                Toast.makeText(context, "Permisos Bluetooth necesarios para buscar impresoras", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        fun checkAndLoadPrinters() {
+            if (com.example.ui.BluetoothPrinterHelper.hasBluetoothPermission(context)) {
+                if (com.example.ui.BluetoothPrinterHelper.isBluetoothEnabled(context)) {
+                    pairedPrinters = com.example.ui.BluetoothPrinterHelper.getPairedPrinters(context)
+                    isPairedListExpanded = !isPairedListExpanded
+                } else {
+                    Toast.makeText(context, "Por favor active el Bluetooth de su dispositivo", Toast.LENGTH_LONG).show()
+                }
+            } else {
+                val permissions = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    arrayOf(android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_SCAN)
+                } else {
+                    arrayOf(android.Manifest.permission.BLUETOOTH, android.Manifest.permission.BLUETOOTH_ADMIN)
+                }
+                requestPermissionLauncher.launch(permissions)
+            }
+        }
+
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth().testTag("bluetooth_printer_config_card")
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("📶", fontSize = 20.sp)
+                        Column {
+                            Text(
+                                "Impresora Termica Bluetooth",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                "Compatible con ESC/POS directo (58mm/80mm)",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Scan / Refresh Button
+                    IconButton(
+                        onClick = { checkAndLoadPrinters() },
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Buscar Impresoras",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+
+                Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+
+                // CURRENT SELECTION ROW
+                if (activePrinter != null) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF2E7D32)) // Green dot
+                                )
+                                Text(
+                                    text = activePrinter!!.name,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "(${activePrinter!!.address})",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            // Disconnect/Clear Button
+                            TextButton(
+                                onClick = {
+                                    com.example.ui.BluetoothPrinterHelper.clearSelectedPrinter(context)
+                                    activePrinter = null
+                                    Toast.makeText(context, "Impresora desvinculada", Toast.LENGTH_SHORT).show()
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text("Quitar", color = MaterialTheme.colorScheme.error, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        isTestingConnection = true
+                                        val ok = com.example.ui.BluetoothPrinterHelper.printTestPage(context, activePrinter!!.address, activePrinter!!.name)
+                                        isTestingConnection = false
+                                        if (ok) {
+                                            Toast.makeText(context, "¡Pagina de prueba enviada exitosamente!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Error: Verifique que la impresora esté encendida", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                },
+                                enabled = !isTestingConnection,
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary
+                                ),
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(vertical = 8.dp)
+                            ) {
+                                Icon(Icons.Default.Check, contentDescription = "Probar", modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    if (isTestingConnection) "Probando..." else "Imprimir Ticket de Prueba",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.error) // Red dot
+                            )
+                            Text(
+                                text = "Sin impresora configurada",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        TextButton(
+                            onClick = { checkAndLoadPrinters() }
+                        ) {
+                            Text("Vincular Ahora 📶", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                // EXPANDABLE PAIRED DEVICES LIST
+                AnimatedVisibility(visible = isPairedListExpanded) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+                            .clip(RoundedCornerShape(8.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                            .padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "Dispositivos Bluetooth Vinculados:",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+
+                        if (pairedPrinters.isEmpty()) {
+                            Text(
+                                text = "No se encontraron dispositivos vinculados. Sincronice primero su impresora termica en los ajustes de Bluetooth de Android.",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                        } else {
+                            pairedPrinters.forEach { device ->
+                                val isSelected = activePrinter?.address == device.address
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(
+                                            if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                                            else Color.Transparent
+                                        )
+                                        .clickable {
+                                            com.example.ui.BluetoothPrinterHelper.saveSelectedPrinter(context, device.address, device.name)
+                                            activePrinter = device
+                                            isPairedListExpanded = false
+                                            Toast.makeText(context, "Impresora ${device.name} seleccionada", Toast.LENGTH_SHORT).show()
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = device.name,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = device.address,
+                                            fontSize = 10.sp,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Seleccionado",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // SEARCH BAR
         OutlinedTextField(
             value = searchQuery,
@@ -6138,41 +6476,95 @@ fun ImpresoraTab(
                                 }
 
                                 var isPrinting by remember { mutableStateOf(false) }
-                                Button(
-                                    onClick = {
-                                        isPrinting = true
-                                        viewModel.loadOrderItems(order.id) { items ->
-                                            val html = generateReceiptHtml(
-                                                order = order,
-                                                items = items,
-                                                name = restaurantName,
-                                                address = restaurantAddress,
-                                                phone = restaurantPhone,
-                                                logoId = logoType,
-                                                logoBase64 = restaurantLogoBase64,
-                                                slogan = restaurantSlogan
-                                            )
-                                            sendToThermalPrinter(context, html)
-                                            isPrinting = false
-                                            Toast.makeText(context, "Imprimiendo Ticket #${order.id}...", Toast.LENGTH_SHORT).show()
-                                        }
-                                    },
-                                    enabled = !isPrinting,
-                                    shape = RoundedCornerShape(10.dp),
+                                var isPrintingBt by remember { mutableStateOf(false) }
+                                val bScope = rememberCoroutineScope()
+
+                                Column(
                                     modifier = Modifier.weight(1.5f),
-                                    contentPadding = PaddingValues(vertical = 8.dp)
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Share,
-                                        contentDescription = "Imprimir",
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        if (isPrinting) "Imprimiendo..." else "Imprimir Ticket",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    Button(
+                                        onClick = {
+                                            isPrinting = true
+                                            viewModel.loadOrderItems(order.id) { items ->
+                                                val html = generateReceiptHtml(
+                                                    order = order,
+                                                    items = items,
+                                                    name = restaurantName,
+                                                    address = restaurantAddress,
+                                                    phone = restaurantPhone,
+                                                    logoId = logoType,
+                                                    logoBase64 = restaurantLogoBase64,
+                                                    slogan = restaurantSlogan
+                                                )
+                                                sendToThermalPrinter(context, html)
+                                                isPrinting = false
+                                                Toast.makeText(context, "Imprimiendo Ticket #${order.id}...", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        enabled = !isPrinting && !isPrintingBt,
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        contentPadding = PaddingValues(vertical = 8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Share,
+                                            contentDescription = "Imprimir",
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            if (isPrinting) "Procesando..." else "Imprimir (Sist.)",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+
+                                    // Direct Bluetooth Reprint option
+                                    val savedPrinter = remember { mutableStateOf<com.example.ui.BluetoothPrinterHelper.PrinterDevice?>(null) }
+                                    LaunchedEffect(Unit) {
+                                        savedPrinter.value = com.example.ui.BluetoothPrinterHelper.getSelectedPrinter(context)
+                                    }
+
+                                    savedPrinter.value?.let { btDev ->
+                                        Button(
+                                            onClick = {
+                                                bScope.launch {
+                                                    isPrintingBt = true
+                                                    viewModel.loadOrderItems(order.id) { items ->
+                                                        bScope.launch {
+                                                            val data = com.example.ui.BluetoothPrinterHelper.buildEscPosReceipt(
+                                                                restaurantName,
+                                                                restaurantAddress,
+                                                                restaurantPhone,
+                                                                restaurantSlogan,
+                                                                order,
+                                                                items
+                                                            )
+                                                            val ok = com.example.ui.BluetoothPrinterHelper.printDirect(context, btDev.address, data)
+                                                            isPrintingBt = false
+                                                            if (ok) {
+                                                                Toast.makeText(context, "Ticket #${order.id} enviado a ${btDev.name}", Toast.LENGTH_SHORT).show()
+                                                            } else {
+                                                                Toast.makeText(context, "Error al imprimir en ${btDev.name}", Toast.LENGTH_LONG).show()
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            enabled = !isPrinting && !isPrintingBt,
+                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                                            shape = RoundedCornerShape(10.dp),
+                                            modifier = Modifier.fillMaxWidth(),
+                                            contentPadding = PaddingValues(vertical = 8.dp)
+                                        ) {
+                                            Text(
+                                                if (isPrintingBt) "Enviando..." else "Imprimir BT 📶",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
