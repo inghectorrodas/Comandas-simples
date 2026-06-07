@@ -6532,6 +6532,151 @@ fun CierresTab(
 
     val context = LocalContext.current
 
+    if (showCloseTurnDialog) {
+        var actualCashText by remember { mutableStateOf("") }
+        val activeCashSalesSum = activeOrders.filter { it.paymentMethod == "Efectivo" }.sumOf { it.totalAmount }
+        val expectedCash = initialCash + activeCashSalesSum
+        val actualCash = actualCashText.toDoubleOrNull() ?: 0.0
+        val difference = actualCash - expectedCash
+
+        Dialog(onDismissRequest = { showCloseTurnDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Cerrar Turno y Caja",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Realice el conteo físico de dinero en caja para cuadrar el turno actual y archivar las comandas correspondientes.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+
+                    // Totales de Caja
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                            .padding(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Efectivo Inicial:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(initialCash.formatPrice(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("+ Ventas en Efectivo:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(activeCashSalesSum.formatPrice(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Efectivo Esperado (Teórico):", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            Text(expectedCash.formatPrice(), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+
+                    // Campo para ingresar efectivo real
+                    OutlinedTextField(
+                        value = actualCashText,
+                        onValueChange = { actualCashText = it },
+                        label = { Text("Efectivo Real en Caja ($)") },
+                        placeholder = { Text("0.00") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth().testTag("actual_cash_input")
+                    )
+
+                    // Mostrar diferencia
+                    if (actualCashText.isNotEmpty()) {
+                        val diffColor = when {
+                            difference == 0.0 -> Color(0xFF2E7D32)
+                            difference > 0.0 -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.error
+                        }
+                        val diffText = when {
+                            difference == 0.0 -> "Caja Cuadrada"
+                            difference > 0.0 -> "Sobrante de: ${difference.formatPrice()}"
+                            else -> "Faltante de: ${difference.formatPrice()}"
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(diffColor.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                                .padding(8.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Diferencia: $diffText",
+                                fontWeight = FontWeight.Bold,
+                                color = diffColor,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Botones de acción
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TextButton(
+                            onClick = { showCloseTurnDialog = false },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Cancelar")
+                        }
+
+                        Button(
+                            onClick = {
+                                viewModel.closeCashRegister(
+                                    actualCashAtClose = actualCash,
+                                    onSuccess = { closure ->
+                                        showCloseTurnDialog = false
+                                        Toast.makeText(context, "¡Caja cerrada exitosamente!", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onError = { error ->
+                                        Toast.makeText(context, "Error: $error", Toast.LENGTH_LONG).show()
+                                    }
+                                )
+                            },
+                            modifier = Modifier.weight(1.5f),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Text("Confirmar Cierre", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Calculations for the current active open drawer (before closing)
     val openSalesSum = activeOrders.sumOf { it.totalAmount }
     val openCostSum = activeOrders.sumOf { it.totalCost }
