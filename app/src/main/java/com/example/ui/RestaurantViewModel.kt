@@ -167,21 +167,25 @@ class RestaurantViewModel(application: Application) : AndroidViewModel(applicati
     val selectedClosureItems: StateFlow<List<OrderItem>> = _selectedClosureItems.asStateFlow()
 
     init {
-        // Populate default menu items if database is totally empty
+        // Populate default menu items if database is totally empty AND we haven't seeded yet
         viewModelScope.launch {
-            dishes.first() // Wait to load
-            if (dishes.value.isEmpty()) {
-                val defaults = listOf(
-                    Dish(name = "Hamburguesa Clásica", price = 12.50, cost = 5.00, category = "Hamburguesas", dailyStock = 30, initialDailyStock = 30),
-                    Dish(name = "Pizza Familiar Pepperoni", price = 18.00, cost = 7.50, category = "Pizzas", dailyStock = 15, initialDailyStock = 15),
-                    Dish(name = "Tacos al Pastor (Orden x5)", price = 10.00, cost = 4.00, category = "Tacos", dailyStock = 50, initialDailyStock = 50),
-                    Dish(name = "Café Americano", price = 3.50, cost = 1.00, category = "Bebidas", dailyStock = 80, initialDailyStock = 80),
-                    Dish(name = "Pastel de Tres Leches", price = 4.50, cost = 1.80, category = "Postres", dailyStock = 20, initialDailyStock = 20),
-                    Dish(name = "Limonada Natural", price = 3.00, cost = 0.80, category = "Bebidas", dailyStock = 60, initialDailyStock = 60)
-                )
-                for (d in defaults) {
-                    repository.insertDish(d)
+            val hasSeeded = prefs.getBoolean("has_seeded_defaults_v2", false)
+            if (!hasSeeded) {
+                dishes.first() // Wait to load
+                if (dishes.value.isEmpty()) {
+                    val defaults = listOf(
+                        Dish(name = "Hamburguesa Clásica", price = 12.50, cost = 5.00, category = "Hamburguesas", dailyStock = 30, initialDailyStock = 30),
+                        Dish(name = "Pizza Familiar Pepperoni", price = 18.00, cost = 7.50, category = "Pizzas", dailyStock = 15, initialDailyStock = 15),
+                        Dish(name = "Tacos al Pastor (Orden x5)", price = 10.00, cost = 4.00, category = "Tacos", dailyStock = 50, initialDailyStock = 50),
+                        Dish(name = "Café Americano", price = 3.50, cost = 1.00, category = "Bebidas", dailyStock = 80, initialDailyStock = 80),
+                        Dish(name = "Pastel de Tres Leches", price = 4.50, cost = 1.80, category = "Postres", dailyStock = 20, initialDailyStock = 20),
+                        Dish(name = "Limonada Natural", price = 3.00, cost = 0.80, category = "Bebidas", dailyStock = 60, initialDailyStock = 60)
+                    )
+                    for (d in defaults) {
+                        repository.insertDish(d)
+                    }
                 }
+                prefs.edit().putBoolean("has_seeded_defaults_v2", true).apply()
             }
         }
     }

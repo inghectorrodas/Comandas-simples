@@ -2053,6 +2053,58 @@ fun ProductosScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
+                    if (customCategories.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                        Text(
+                            "Categorías Personalizadas Existentes",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        customCategories.forEach { customCat ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    CategoryIcon(
+                                        base64 = customCat.iconBase64,
+                                        fallbackText = customCat.name,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Text(
+                                        text = customCat.name,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        viewModel.deleteCustomCategory(customCat.name)
+                                        Toast.makeText(context, "Categoría eliminada", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.size(32.dp).testTag("delete_cat_" + customCat.name)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Eliminar categoría",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Row(
