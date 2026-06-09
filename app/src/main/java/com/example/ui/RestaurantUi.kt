@@ -4178,6 +4178,19 @@ fun SalesTab(
                                         color = Color.Black
                                     )
                                 }
+
+                                val clientNameText = rOrder.customerName?.trim()
+                                if (!clientNameText.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = clientNameText.uppercase(Locale.getDefault()),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = Color.Black,
+                                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                                    )
+                                }
                                 
                                 Text("-----------------------------------------", fontSize = 9.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
                                 
@@ -4323,6 +4336,19 @@ fun SalesTab(
                                         fontWeight = FontWeight.Black,
                                         fontFamily = FontFamily.Monospace,
                                         color = Color.Black
+                                    )
+                                }
+
+                                val clientNameTextDetailed = rOrder.customerName?.trim()
+                                if (!clientNameTextDetailed.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = clientNameTextDetailed.uppercase(Locale.getDefault()),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = Color.Black,
+                                        modifier = Modifier.align(Alignment.CenterHorizontally)
                                     )
                                 }
                                 

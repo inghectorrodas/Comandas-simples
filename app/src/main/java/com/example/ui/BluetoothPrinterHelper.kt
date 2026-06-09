@@ -318,6 +318,10 @@ object BluetoothPrinterHelper {
 
             // Large Bold Channel Assignment
             addTextLine(displayChannelForPrinting, CMD_ALIGN_CENTER, FONT_BOLD_DOUBLE)
+            val clientNameForPrinting = order.customerName?.trim()
+            if (!clientNameForPrinting.isNullOrBlank()) {
+                addTextLine(clientNameForPrinting.uppercase(Locale.getDefault()), CMD_ALIGN_CENTER, FONT_BOLD)
+            }
             addSeparator()
 
             // Essential sales metadata
@@ -392,6 +396,10 @@ object BluetoothPrinterHelper {
 
             // LARGE BOLD CHANNEL ROW (CANAL DE ASIGNACION)
             addTextLine(displayChannelLabelForPrinting, CMD_ALIGN_CENTER, FONT_BOLD_DOUBLE)
+            val clientNameDetailedForPrinting = order.customerName?.trim()
+            if (!clientNameDetailedForPrinting.isNullOrBlank()) {
+                addTextLine(clientNameDetailedForPrinting.uppercase(Locale.getDefault()), CMD_ALIGN_CENTER, FONT_BOLD)
+            }
             addSeparator()
 
             // 3. DETALLE DE COMPRA TABULAR
