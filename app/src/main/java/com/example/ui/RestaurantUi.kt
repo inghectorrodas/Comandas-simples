@@ -2545,7 +2545,6 @@ fun generateReceiptHtml(
         <div class="center footer">
             ¡Muchas Gracias por su Compra!<br>
             "$slogan"<br>
-            Soporte - Teléfono: $phone<br>
         </div>
     </body>
     </html>
@@ -4301,14 +4300,14 @@ fun SalesTab(
                                 
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text("=========================================", fontSize = 9.sp, color = Color.Black, fontFamily = FontFamily.Monospace)
-                                Text("TICKET DE VENTA / CONTROL INTERNO", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Text("TICKET DE VENTA", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.align(Alignment.CenterHorizontally))
                                 Text("=========================================", fontSize = 9.sp, color = Color.Black, fontFamily = FontFamily.Monospace)
                                 
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = "Ticket Nro:  #${rOrder.id}\n" +
                                            "Fecha/Hora:  ${SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date(rOrder.timestamp))}\n" +
-                                           "Cliente:     ${rOrder.customerName ?: "Consumidor Final"}\n" +
+
                                            "Referencia:  ${if (rOrder.isDelivery && rOrder.deliveryAddress != null) "Entrega: ${rOrder.deliveryAddress}" else if (rOrder.tableNumber != null && rOrder.tableNumber != "Para Llevar") "Servicio de Mesa: ${rOrder.tableNumber}" else "Retira en Sucursal"}",
                                     color = Color.Black,
                                     fontSize = 10.sp,
@@ -4383,16 +4382,7 @@ fun SalesTab(
                                 
                                 Text("-----------------------------------------", fontSize = 9.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
                                 
-                                val subtotalVal = rOrder.totalAmount / 1.16
-                                val taxVal = rOrder.totalAmount - subtotalVal
-                                
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text("Subtotal (Pre-Impuesto):", fontSize = 10.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
-                                    Text(subtotalVal.formatPrice(), fontSize = 10.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
-                                }
+
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -4436,7 +4426,7 @@ fun SalesTab(
                                 Text("=========================================", fontSize = 9.sp, color = Color.Black, fontFamily = FontFamily.Monospace)
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    "¡Muchas Gracias por su Compra!\nSoporte y Atencion al Cliente",
+                                    "¡Muchas Gracias por su Compra!",
                                     fontSize = 9.sp,
                                     color = Color.DarkGray,
                                     textAlign = TextAlign.Center,

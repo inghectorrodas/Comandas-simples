@@ -374,15 +374,13 @@ object BluetoothPrinterHelper {
             addDoubleSeparator()
 
             // 2. IDENTIFICACION FISCAL (DOCUMENT NATURE, METADATA & CHANNEL)
-            addTextLine("DOCUMENTO DE CONTROL INTERNO", CMD_ALIGN_CENTER, FONT_BOLD)
-            addTextLine("--- TICKET DE VENTA ---", CMD_ALIGN_CENTER, FONT_NORMAL)
+            addTextLine("TICKET DE VENTA", CMD_ALIGN_CENTER, FONT_BOLD)
             addNewLine()
 
             val formatDateTime = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
             val dateString = formatDateTime.format(Date(order.timestamp))
             addTextLine("Ticket Nro:  #${order.id}", CMD_ALIGN_LEFT, FONT_BOLD)
             addTextLine("Fecha/Hora:  $dateString", CMD_ALIGN_LEFT, FONT_NORMAL)
-            addTextLine("Cliente:     ${order.customerName ?: "Consumidor Final"}", CMD_ALIGN_LEFT, FONT_NORMAL)
             
             val detailService = if (order.isDelivery) {
                 "Entrega a Domicilio: ${order.deliveryAddress ?: ""}"
@@ -432,8 +430,6 @@ object BluetoothPrinterHelper {
             val taxFormatted = String.format(Locale.US, "$%.2f", taxVal)
             val totalFormatted = String.format(Locale.US, "$%.2f", order.totalAmount)
 
-            addTextLine("Subtotal (Pre-Impuesto):  $subtotalFormatted", CMD_ALIGN_RIGHT, FONT_NORMAL)
-
             addTextLine("TOTAL NETO A PAGAR:       $totalFormatted", CMD_ALIGN_RIGHT, FONT_BOLD)
             addTextLine("Metodo de Pago: ${order.paymentMethod}", CMD_ALIGN_RIGHT, FONT_NORMAL)
 
@@ -450,7 +446,6 @@ object BluetoothPrinterHelper {
             if (restaurantSlogan.isNotEmpty()) {
                 addTextLine(restaurantSlogan, CMD_ALIGN_CENTER, FONT_NORMAL)
             }
-            addTextLine("Soporte y Atencion al Cliente", CMD_ALIGN_CENTER, FONT_NORMAL)
             if (restaurantPhone.isNotEmpty()) {
                 addTextLine("Comentarios: $restaurantPhone", CMD_ALIGN_CENTER, FONT_NORMAL)
             }
