@@ -293,6 +293,18 @@ object BluetoothPrinterHelper {
             "PARA LLEVAR"
         }
 
+        val isMesaGral = order.tableNumber?.trim()?.lowercase() == "mesa gral" || order.tableNumber?.trim()?.lowercase() == "mesa general" || order.tableNumber.isNullOrBlank()
+        val displayChannelForPrinting = if (!order.isDelivery && order.tableNumber != "Para Llevar" && isMesaGral) {
+            "Mesa Gral"
+        } else {
+            channelName
+        }
+        val displayChannelLabelForPrinting = if (!order.isDelivery && order.tableNumber != "Para Llevar" && isMesaGral) {
+            "Mesa Gral"
+        } else {
+            "CANAL: $channelName"
+        }
+
         if (isSimplified) {
             // ==========================================
             // SIMPLIFIED TICKET
@@ -305,7 +317,7 @@ object BluetoothPrinterHelper {
             addSeparator()
 
             // Large Bold Channel Assignment
-            addTextLine(channelName, CMD_ALIGN_CENTER, FONT_BOLD_DOUBLE)
+            addTextLine(displayChannelForPrinting, CMD_ALIGN_CENTER, FONT_BOLD_DOUBLE)
             addSeparator()
 
             // Essential sales metadata
@@ -379,7 +391,7 @@ object BluetoothPrinterHelper {
             addSeparator()
 
             // LARGE BOLD CHANNEL ROW (CANAL DE ASIGNACION)
-            addTextLine("CANAL: $channelName", CMD_ALIGN_CENTER, FONT_BOLD_DOUBLE)
+            addTextLine(displayChannelLabelForPrinting, CMD_ALIGN_CENTER, FONT_BOLD_DOUBLE)
             addSeparator()
 
             // 3. DETALLE DE COMPRA TABULAR

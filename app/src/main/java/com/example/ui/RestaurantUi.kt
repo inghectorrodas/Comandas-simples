@@ -4014,6 +4014,13 @@ fun SalesTab(
             "PARA LLEVAR"
         }
 
+        val isMesaGral = rOrder.tableNumber?.trim()?.lowercase() == "mesa gral" || rOrder.tableNumber?.trim()?.lowercase() == "mesa general" || rOrder.tableNumber.isNullOrBlank()
+        val displayChannelLabel = if (!rOrder.isDelivery && rOrder.tableNumber != "Para Llevar" && isMesaGral) {
+            "Mesa Gral"
+        } else {
+            "CANAL: $channelName"
+        }
+
         Dialog(onDismissRequest = { receiptToPrint = null }) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
@@ -4164,7 +4171,7 @@ fun SalesTab(
                                         .padding(horizontal = 12.dp, vertical = 3.dp)
                                 ) {
                                     Text(
-                                        "CANAL: $channelName",
+                                        displayChannelLabel,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Black,
                                         fontFamily = FontFamily.Monospace,
@@ -4311,7 +4318,7 @@ fun SalesTab(
                                         .padding(horizontal = 18.dp, vertical = 4.dp)
                                 ) {
                                     Text(
-                                        "CANAL: $channelName",
+                                        displayChannelLabel,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Black,
                                         fontFamily = FontFamily.Monospace,
