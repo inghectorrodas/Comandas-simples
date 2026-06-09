@@ -433,7 +433,7 @@ object BluetoothPrinterHelper {
             val totalFormatted = String.format(Locale.US, "$%.2f", order.totalAmount)
 
             addTextLine("Subtotal (Pre-Impuesto):  $subtotalFormatted", CMD_ALIGN_RIGHT, FONT_NORMAL)
-            addTextLine("IVA (16% Incluido):       $taxFormatted", CMD_ALIGN_RIGHT, FONT_NORMAL)
+
             addTextLine("TOTAL NETO A PAGAR:       $totalFormatted", CMD_ALIGN_RIGHT, FONT_BOLD)
             addTextLine("Metodo de Pago: ${order.paymentMethod}", CMD_ALIGN_RIGHT, FONT_NORMAL)
 

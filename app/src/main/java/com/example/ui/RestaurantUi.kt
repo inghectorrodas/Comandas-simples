@@ -2521,10 +2521,7 @@ fun generateReceiptHtml(
                 <td style="text-align: left; font-size: 12px; color: #444;">Subtotal (Pre-Impuesto):</td>
                 <td style="text-align: right; font-size: 12px; color: #444;">${subtotalVal.formatPrice()}</td>
             </tr>
-            <tr>
-                <td style="text-align: left; font-size: 12px; color: #444;">IVA (16% Incluido):</td>
-                <td style="text-align: right; font-size: 12px; color: #444;">${taxVal.formatPrice()}</td>
-            </tr>
+
             <tr class="totals">
                 <td style="text-align: left; padding-top: 4px;">TOTAL NETO:</td>
                 <td style="text-align: right; padding-top: 4px;">${order.totalAmount.formatPrice()}</td>
@@ -4396,13 +4393,7 @@ fun SalesTab(
                                     Text("Subtotal (Pre-Impuesto):", fontSize = 10.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
                                     Text(subtotalVal.formatPrice(), fontSize = 10.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
                                 }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text("IVA (16% Incluido):", fontSize = 10.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
-                                    Text(taxVal.formatPrice(), fontSize = 10.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
-                                }
+
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -8544,10 +8535,7 @@ fun ImpresoraTab(
                                     Text("Subtotal (Pre-Impuesto):", fontSize = 8.sp)
                                     Text("$18.53", fontSize = 8.sp)
                                 }
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("IVA (16% Incluido):", fontSize = 8.sp)
-                                    Text("$2.97", fontSize = 8.sp)
-                                }
+
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text("TOTAL NETO:", fontSize = 9.sp, fontWeight = FontWeight.Bold)
                                     Text("$21.50", fontSize = 9.sp, fontWeight = FontWeight.Bold)
