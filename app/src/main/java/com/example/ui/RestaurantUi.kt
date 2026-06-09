@@ -2391,10 +2391,14 @@ fun generateReceiptHtml(
                     <td style="text-align: left;">TOTAL:</td>
                     <td style="text-align: right;">${order.totalAmount.formatPrice()}</td>
                 </tr>
+                <tr>
+                    <td style="text-align: left; font-size: 11px; color: #555;">Metodo Pago:</td>
+                    <td style="text-align: right; font-size: 11px; font-weight: bold;">${order.paymentMethod}</td>
+                </tr>
                 ${if (order.paymentMethod.equals("Efectivo", ignoreCase = true)) {
                     """
                     <tr>
-                        <td style="text-align: left; font-size: 11px;">Pago:</td>
+                        <td style="text-align: left; font-size: 11px; color: #555;">Efectivo Entregado:</td>
                         <td style="text-align: right; font-size: 11px;">${order.amountReceived.formatPrice()}</td>
                     </tr>
                     <tr>
@@ -4127,7 +4131,7 @@ fun SalesTab(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(18.dp),
+                                .padding(10.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             if (localIsSimplified) {
@@ -4136,39 +4140,39 @@ fun SalesTab(
                                 // --------------------------------------------
                                 Text(
                                     getLogoEmoji(logoType),
-                                    fontSize = 28.sp
+                                    fontSize = 20.sp
                                 )
-                                Spacer(modifier = Modifier.height(2.dp))
+                                Spacer(modifier = Modifier.height(1.dp))
                                 Text(
                                     restaurantName.uppercase(),
                                     fontWeight = FontWeight.Bold,
                                     color = Color.Black,
-                                    fontSize = 14.sp,
+                                    fontSize = 12.sp,
                                     textAlign = TextAlign.Center
                                 )
                                 if (restaurantPhone.isNotEmpty()) {
                                     Text(
                                         "Tel: $restaurantPhone",
                                         color = Color.DarkGray,
-                                        fontSize = 10.sp,
+                                        fontSize = 9.sp,
                                         textAlign = TextAlign.Center,
                                         fontFamily = FontFamily.Monospace
                                     )
                                 }
                                 
-                                Spacer(modifier = Modifier.height(6.dp))
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text("-----------------------------------------", fontSize = 9.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
                                 
                                 // Channel selection prominent
                                 Box(
                                     modifier = Modifier
                                         .align(Alignment.CenterHorizontally)
-                                        .border(1.5.dp, Color.Black, RoundedCornerShape(2.dp))
-                                        .padding(horizontal = 12.dp, vertical = 3.dp)
+                                        .border(1.dp, Color.Black, RoundedCornerShape(2.dp))
+                                        .padding(horizontal = 10.dp, vertical = 2.dp)
                                 ) {
                                     Text(
                                         displayChannelLabel,
-                                        fontSize = 13.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Black,
                                         fontFamily = FontFamily.Monospace,
                                         color = Color.Black
@@ -4177,10 +4181,10 @@ fun SalesTab(
 
                                 val clientNameText = rOrder.customerName?.trim()
                                 if (!clientNameText.isNullOrBlank()) {
-                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = clientNameText.uppercase(Locale.getDefault()),
-                                        fontSize = 12.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         fontFamily = FontFamily.Monospace,
                                         color = Color.Black,
@@ -4194,7 +4198,7 @@ fun SalesTab(
                                     text = "TICKET: #${rOrder.id}\n" +
                                            "Fecha: ${SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(rOrder.timestamp))}",
                                     color = Color.Black,
-                                    fontSize = 10.sp,
+                                    fontSize = 9.sp,
                                     fontFamily = FontFamily.Monospace,
                                     modifier = Modifier.align(Alignment.Start)
                                 )
@@ -4203,24 +4207,24 @@ fun SalesTab(
                                 
                                 // Compact List
                                 receiptItemsToPrint.forEach { itm ->
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            "${itm.quantity}x ${itm.dishName}",
-                                            color = Color.Black,
-                                            fontSize = 10.sp,
-                                            fontFamily = FontFamily.Monospace,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        Text(
-                                            (itm.price * itm.quantity).formatPrice(),
-                                            color = Color.Black,
-                                            fontSize = 10.sp,
-                                            fontFamily = FontFamily.Monospace
-                                        )
-                                    }
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                "${itm.quantity}x ${itm.dishName}",
+                                                color = Color.Black,
+                                                fontSize = 9.sp,
+                                                fontFamily = FontFamily.Monospace,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Text(
+                                                (itm.price * itm.quantity).formatPrice(),
+                                                color = Color.Black,
+                                                fontSize = 9.sp,
+                                                fontFamily = FontFamily.Monospace
+                                            )
+                                        }
                                 }
                                 
                                 Text("-----------------------------------------", fontSize = 9.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
@@ -4233,17 +4237,25 @@ fun SalesTab(
                                     Text(
                                         "TOTAL:",
                                         fontWeight = FontWeight.Black,
-                                        fontSize = 13.sp,
+                                        fontSize = 12.sp,
                                         color = Color.Black,
                                         fontFamily = FontFamily.Monospace
                                     )
                                     Text(
                                         rOrder.totalAmount.formatPrice(),
                                         fontWeight = FontWeight.Black,
-                                        fontSize = 13.sp,
+                                        fontSize = 12.sp,
                                         color = Color.Black,
                                         fontFamily = FontFamily.Monospace
                                     )
+                                }
+                                
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Metodo Pago:", fontSize = 9.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
+                                    Text(rOrder.paymentMethod, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black, fontFamily = FontFamily.Monospace)
                                 }
                                 
                                 if (rOrder.paymentMethod == "Efectivo") {
@@ -4251,12 +4263,19 @@ fun SalesTab(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Text("Cambio:", fontSize = 10.sp, color = Color.Black, fontFamily = FontFamily.Monospace)
-                                        Text(rOrder.changeGiven.formatPrice(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black, fontFamily = FontFamily.Monospace)
+                                        Text("Efectivo Entregado:", fontSize = 9.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
+                                        Text(rOrder.amountReceived.formatPrice(), fontSize = 9.sp, color = Color.Black, fontFamily = FontFamily.Monospace)
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("Cambio:", fontSize = 9.sp, color = Color.Black, fontFamily = FontFamily.Monospace)
+                                        Text(rOrder.changeGiven.formatPrice(), fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black, fontFamily = FontFamily.Monospace)
                                     }
                                 }
                                 
-                                Spacer(modifier = Modifier.height(10.dp))
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     "¡Gracias por su Preferencia!",
                                     fontSize = 9.sp,
@@ -4271,21 +4290,21 @@ fun SalesTab(
                                 // --------------------------------------------
                                 Text(
                                     getLogoEmoji(logoType),
-                                    fontSize = 38.sp
+                                    fontSize = 24.sp
                                 )
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(1.dp))
                                 Text(
                                     restaurantName.uppercase(),
                                     fontWeight = FontWeight.Bold,
                                     color = Color.Black,
-                                    fontSize = 16.sp,
+                                    fontSize = 13.sp,
                                     textAlign = TextAlign.Center
                                 )
                                 if (restaurantSlogan.isNotEmpty()) {
                                     Text(
                                         "\"$restaurantSlogan\"",
                                         color = Color.Gray,
-                                        fontSize = 10.sp,
+                                        fontSize = 9.sp,
                                         fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                                         textAlign = TextAlign.Center
                                     )
@@ -4293,42 +4312,41 @@ fun SalesTab(
                                 Text(
                                     "$restaurantAddress\nTel: $restaurantPhone",
                                     color = Color.DarkGray,
-                                    fontSize = 11.sp,
+                                    fontSize = 9.sp,
                                     textAlign = TextAlign.Center,
                                     fontFamily = FontFamily.Monospace
                                 )
                                 
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text("=========================================", fontSize = 9.sp, color = Color.Black, fontFamily = FontFamily.Monospace)
                                 Text("TICKET DE VENTA", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.align(Alignment.CenterHorizontally))
                                 Text("=========================================", fontSize = 9.sp, color = Color.Black, fontFamily = FontFamily.Monospace)
                                 
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "Ticket Nro:  #${rOrder.id}\n" +
                                            "Fecha/Hora:  ${SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date(rOrder.timestamp))}\n" +
-
                                            "Referencia:  ${if (rOrder.isDelivery && rOrder.deliveryAddress != null) "Entrega: ${rOrder.deliveryAddress}" else if (rOrder.tableNumber != null && rOrder.tableNumber != "Para Llevar") "Servicio de Mesa: ${rOrder.tableNumber}" else "Retira en Sucursal"}",
                                     color = Color.Black,
-                                    fontSize = 10.sp,
+                                    fontSize = 9.sp,
                                     fontFamily = FontFamily.Monospace,
                                     modifier = Modifier.align(Alignment.Start)
                                 )
                                 
-                                Spacer(modifier = Modifier.height(6.dp))
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text("-----------------------------------------", fontSize = 9.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
                                 
                                 // Channel selection badge centered & filled with bordered row
                                 Box(
                                     modifier = Modifier
                                         .align(Alignment.CenterHorizontally)
-                                        .border(2.dp, Color.Black, RoundedCornerShape(4.dp))
+                                        .border(1.dp, Color.Black, RoundedCornerShape(2.dp))
                                         .background(Color(0xFFEEEEEE))
-                                        .padding(horizontal = 18.dp, vertical = 4.dp)
+                                        .padding(horizontal = 12.dp, vertical = 2.dp)
                                 ) {
                                     Text(
                                         displayChannelLabel,
-                                        fontSize = 14.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Black,
                                         fontFamily = FontFamily.Monospace,
                                         color = Color.Black
@@ -4337,10 +4355,10 @@ fun SalesTab(
 
                                 val clientNameTextDetailed = rOrder.customerName?.trim()
                                 if (!clientNameTextDetailed.isNullOrBlank()) {
-                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = clientNameTextDetailed.uppercase(Locale.getDefault()),
-                                        fontSize = 13.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         fontFamily = FontFamily.Monospace,
                                         color = Color.Black,
@@ -4354,8 +4372,8 @@ fun SalesTab(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text("Cant Platillo", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black, fontFamily = FontFamily.Monospace)
-                                    Text("Importe", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black, fontFamily = FontFamily.Monospace)
+                                    Text("Cant Platillo", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black, fontFamily = FontFamily.Monospace)
+                                    Text("Importe", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black, fontFamily = FontFamily.Monospace)
                                 }
                                 Text("-----------------------------------------", fontSize = 9.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
                                 
@@ -4367,14 +4385,14 @@ fun SalesTab(
                                         Text(
                                             "${itm.quantity}x ${itm.dishName}",
                                             color = Color.Black,
-                                            fontSize = 10.sp,
+                                            fontSize = 9.sp,
                                             fontFamily = FontFamily.Monospace,
                                             modifier = Modifier.weight(1f)
                                         )
                                         Text(
                                             (itm.price * itm.quantity).formatPrice(),
                                             color = Color.Black,
-                                            fontSize = 10.sp,
+                                            fontSize = 9.sp,
                                             fontFamily = FontFamily.Monospace
                                         )
                                     }
@@ -4382,8 +4400,6 @@ fun SalesTab(
                                 
                                 Text("-----------------------------------------", fontSize = 9.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
                                 
-
-
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -4392,39 +4408,39 @@ fun SalesTab(
                                     Text(
                                         "TOTAL NETO:",
                                         fontWeight = FontWeight.Black,
-                                        fontSize = 13.sp,
+                                        fontSize = 12.sp,
                                         color = Color.Black,
                                         fontFamily = FontFamily.Monospace
                                     )
                                     Text(
                                         rOrder.totalAmount.formatPrice(),
                                         fontWeight = FontWeight.Black,
-                                        fontSize = 13.sp,
+                                        fontSize = 12.sp,
                                         color = Color.Black,
                                         fontFamily = FontFamily.Monospace
                                     )
                                 }
-                                Text("Metodo Pago: ${rOrder.paymentMethod}", fontSize = 10.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
+                                Text("Metodo Pago: ${rOrder.paymentMethod}", fontSize = 9.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
                                 
                                 if (rOrder.paymentMethod == "Efectivo") {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Text("Efectivo Entregado:", fontSize = 10.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
-                                        Text(rOrder.amountReceived.formatPrice(), fontSize = 10.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
+                                        Text("Efectivo Entregado:", fontSize = 9.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
+                                        Text(rOrder.amountReceived.formatPrice(), fontSize = 9.sp, color = Color.DarkGray, fontFamily = FontFamily.Monospace)
                                     }
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Text("Cambio Calculado:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black, fontFamily = FontFamily.Monospace)
-                                        Text(rOrder.changeGiven.formatPrice(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black, fontFamily = FontFamily.Monospace)
+                                        Text("Cambio Calculado:", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black, fontFamily = FontFamily.Monospace)
+                                        Text(rOrder.changeGiven.formatPrice(), fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black, fontFamily = FontFamily.Monospace)
                                     }
                                 }
                                 
                                 Text("=========================================", fontSize = 9.sp, color = Color.Black, fontFamily = FontFamily.Monospace)
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     "¡Muchas Gracias por su Compra!",
                                     fontSize = 9.sp,

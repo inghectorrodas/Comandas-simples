@@ -347,10 +347,12 @@ object BluetoothPrinterHelper {
             // Shorter totals area
             val totalFormatted = String.format(Locale.US, "$%.2f", order.totalAmount)
             addTextLine("TOTAL: $totalFormatted", CMD_ALIGN_RIGHT, FONT_BOLD)
-            addTextLine("Pago: ${order.paymentMethod}", CMD_ALIGN_RIGHT, FONT_NORMAL)
+            addTextLine("Metodo Pago: ${order.paymentMethod}", CMD_ALIGN_RIGHT, FONT_NORMAL)
 
             if (order.paymentMethod == "Efectivo") {
+                val recFormatted = String.format(Locale.US, "$%.2f", order.amountReceived)
                 val chgFormatted = String.format(Locale.US, "$%.2f", order.changeGiven)
+                addTextLine("Efectivo Entregado: $recFormatted", CMD_ALIGN_RIGHT, FONT_NORMAL)
                 addTextLine("Cambio: $chgFormatted", CMD_ALIGN_RIGHT, FONT_BOLD)
             }
 
@@ -371,11 +373,10 @@ object BluetoothPrinterHelper {
             if (restaurantPhone.isNotEmpty()) {
                 addTextLine("Tel: $restaurantPhone", CMD_ALIGN_CENTER, FONT_NORMAL)
             }
-            addDoubleSeparator()
+            addSeparator()
 
             // 2. IDENTIFICACION FISCAL (DOCUMENT NATURE, METADATA & CHANNEL)
             addTextLine("TICKET DE VENTA", CMD_ALIGN_CENTER, FONT_BOLD)
-            addNewLine()
 
             val formatDateTime = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
             val dateString = formatDateTime.format(Date(order.timestamp))
@@ -439,7 +440,7 @@ object BluetoothPrinterHelper {
                 addTextLine("Efectivo Recibido:  $recFormatted", CMD_ALIGN_RIGHT, FONT_NORMAL)
                 addTextLine("Cambio Calculado:   $chgFormatted", CMD_ALIGN_RIGHT, FONT_BOLD)
             }
-            addDoubleSeparator()
+            addSeparator()
 
             // 5. CIERRE / PIE DE TICKET
             addTextLine("¡Gracias por su Compra y Visita!", CMD_ALIGN_CENTER, FONT_BOLD)
@@ -451,9 +452,7 @@ object BluetoothPrinterHelper {
             }
         }
         
-        // Feed lines to clear cutter and cut
-        addNewLine()
-        addNewLine()
+        // Feed minimal lines to clear cutter and cut
         addNewLine()
         addNewLine()
         
