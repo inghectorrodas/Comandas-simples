@@ -285,24 +285,22 @@ object BluetoothPrinterHelper {
         // Initialize Printer
         bytes.addAll(CMD_INIT.toList())
 
-        val channelName = if (order.isDelivery) {
-            "DELIVERY"
-        } else if (order.tableNumber != null && order.tableNumber != "Para Llevar") {
-            "MESA ${order.tableNumber}"
-        } else {
-            "PARA LLEVAR"
-        }
-
         val isMesaGral = order.tableNumber?.trim()?.lowercase() == "mesa gral" || order.tableNumber?.trim()?.lowercase() == "mesa general" || order.tableNumber.isNullOrBlank()
-        val displayChannelForPrinting = if (!order.isDelivery && order.tableNumber != "Para Llevar" && isMesaGral) {
-            "Mesa Gral"
+        val displayChannelLabelForPrinting = if (order.isDelivery) {
+            "DOMICILIO"
+        } else if (order.tableNumber != null && order.tableNumber?.lowercase()?.contains("llevar") == true) {
+            "PARA LLEVAR"
         } else {
-            channelName
-        }
-        val displayChannelLabelForPrinting = if (!order.isDelivery && order.tableNumber != "Para Llevar" && isMesaGral) {
-            "Mesa Gral"
-        } else {
-            "CANAL: $channelName"
+            if (isMesaGral) {
+                "COMER AQUÍ"
+            } else {
+                val tableTrimmed = order.tableNumber?.trim()?.uppercase() ?: ""
+                if (tableTrimmed.contains("MESA")) {
+                    tableTrimmed
+                } else {
+                    "MESA $tableTrimmed"
+                }
+            }
         }
 
         if (isSimplified) {
@@ -317,7 +315,7 @@ object BluetoothPrinterHelper {
             addSeparator()
 
             // Large Bold Channel Assignment
-            addTextLine(displayChannelForPrinting, CMD_ALIGN_CENTER, FONT_BOLD_DOUBLE)
+            addTextLine(displayChannelLabelForPrinting, CMD_ALIGN_CENTER, FONT_BOLD_DOUBLE)
             val clientNameForPrinting = order.customerName?.trim()
             if (!clientNameForPrinting.isNullOrBlank()) {
                 addTextLine(clientNameForPrinting.uppercase(Locale.getDefault()), CMD_ALIGN_CENTER, FONT_BOLD)

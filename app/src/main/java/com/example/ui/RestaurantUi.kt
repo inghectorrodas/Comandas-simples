@@ -4006,19 +4006,22 @@ fun SalesTab(
             bluetoothPrinter = com.example.ui.BluetoothPrinterHelper.getSelectedPrinter(contextPrompt)
         }
 
-        val channelName = if (rOrder.isDelivery) {
-            "DELIVERY"
-        } else if (rOrder.tableNumber != null && rOrder.tableNumber != "Para Llevar" && rOrder.tableNumber != "") {
-            "MESA ${rOrder.tableNumber}"
-        } else {
-            "PARA LLEVAR"
-        }
-
         val isMesaGral = rOrder.tableNumber?.trim()?.lowercase() == "mesa gral" || rOrder.tableNumber?.trim()?.lowercase() == "mesa general" || rOrder.tableNumber.isNullOrBlank()
-        val displayChannelLabel = if (!rOrder.isDelivery && rOrder.tableNumber != "Para Llevar" && isMesaGral) {
-            "Mesa Gral"
+        val displayChannelLabel = if (rOrder.isDelivery) {
+            "DOMICILIO"
+        } else if (rOrder.tableNumber != null && rOrder.tableNumber?.lowercase()?.contains("llevar") == true) {
+            "PARA LLEVAR"
         } else {
-            "CANAL: $channelName"
+            if (isMesaGral) {
+                "COMER AQUÍ"
+            } else {
+                val tableTrimmed = rOrder.tableNumber?.trim()?.uppercase() ?: ""
+                if (tableTrimmed.contains("MESA")) {
+                    tableTrimmed
+                } else {
+                    "MESA $tableTrimmed"
+                }
+            }
         }
 
         Dialog(onDismissRequest = { receiptToPrint = null }) {
@@ -4312,17 +4315,15 @@ fun SalesTab(
                                 Text(
                                     "$restaurantAddress\nTel: $restaurantPhone",
                                     color = Color.DarkGray,
-                                    fontSize = 9.sp,
+                                    fontSize = 8.sp,
                                     textAlign = TextAlign.Center,
                                     fontFamily = FontFamily.Monospace
                                 )
                                 
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text("=========================================", fontSize = 9.sp, color = Color.Black, fontFamily = FontFamily.Monospace)
-                                Text("TICKET DE VENTA", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.align(Alignment.CenterHorizontally))
-                                Text("=========================================", fontSize = 9.sp, color = Color.Black, fontFamily = FontFamily.Monospace)
+                                Text("-----------------------------------------", fontSize = 8.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
+                                Text("TICKET DE VENTA", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.align(Alignment.CenterHorizontally))
+                                Text("-----------------------------------------", fontSize = 8.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
                                 
-                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "Ticket Nro:  #${rOrder.id}\n" +
                                            "Fecha/Hora:  ${SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date(rOrder.timestamp))}\n" +
@@ -4439,7 +4440,7 @@ fun SalesTab(
                                     }
                                 }
                                 
-                                Text("=========================================", fontSize = 9.sp, color = Color.Black, fontFamily = FontFamily.Monospace)
+                                Text("-----------------------------------------", fontSize = 8.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     "¡Muchas Gracias por su Compra!",
@@ -8519,7 +8520,7 @@ fun ImpresoraTab(
                                         .background(Color(0xFFEEEEEE))
                                         .padding(horizontal = 14.dp, vertical = 2.dp)
                                 ) {
-                                    Text("CANAL: MESA 5", fontSize = 11.sp, fontWeight = FontWeight.Black)
+                                    Text("MESA 5", fontSize = 11.sp, fontWeight = FontWeight.Black)
                                 }
                                 
                                 Text("-----------------------------------------", fontSize = 8.sp, color = Color.LightGray, modifier = Modifier.align(Alignment.CenterHorizontally))
@@ -8569,7 +8570,7 @@ fun ImpresoraTab(
                                         .border(1.dp, Color.Black, RoundedCornerShape(1.dp))
                                         .padding(horizontal = 8.dp, vertical = 2.dp)
                                 ) {
-                                    Text("CANAL: MESA 5", fontSize = 12.sp, fontWeight = FontWeight.Black)
+                                    Text("MESA 5", fontSize = 12.sp, fontWeight = FontWeight.Black)
                                 }
                                 
                                 Text("-----------------------------------------", fontSize = 8.sp, color = Color.LightGray, modifier = Modifier.align(Alignment.CenterHorizontally))
