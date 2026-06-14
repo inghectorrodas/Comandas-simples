@@ -40,7 +40,8 @@ data class Order(
     val closureId: Int? = null, // null if part of the current open register session
     val paymentMethod: String = "Efectivo",
     val amountReceived: Double = 0.0,
-    val changeGiven: Double = 0.0
+    val changeGiven: Double = 0.0,
+    val notes: String? = null
 )
 
 @Entity(tableName = "order_items")
@@ -181,7 +182,7 @@ interface RestaurantDao {
 
 @Database(
     entities = [Dish::class, Order::class, OrderItem::class, Purchase::class, CashClosure::class, CustomCategory::class],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class RestaurantDatabase : RoomDatabase() {

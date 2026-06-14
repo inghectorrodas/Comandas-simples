@@ -118,6 +118,7 @@ class RestaurantViewModel(application: Application) : AndroidViewModel(applicati
     val tableNumber = MutableStateFlow("")
     val isDelivery = MutableStateFlow(false)
     val deliveryAddress = MutableStateFlow("")
+    val checkoutNotes = MutableStateFlow("")
     val checkoutOrderType = MutableStateFlow("COMER_AQUI") // "COMER_AQUI", "LLEVAR", "DOMICILIO"
     val checkoutPaymentMethod = MutableStateFlow("Efectivo") // "Efectivo", "Tarjeta", "Transferencia"
     val checkoutAmountReceived = MutableStateFlow(0.0)
@@ -280,6 +281,7 @@ class RestaurantViewModel(application: Application) : AndroidViewModel(applicati
         tableNumber.value = ""
         isDelivery.value = false
         deliveryAddress.value = ""
+        checkoutNotes.value = ""
         checkoutOrderType.value = "COMER_AQUI"
         checkoutPaymentMethod.value = "Efectivo"
         checkoutAmountReceived.value = 0.0
@@ -323,7 +325,8 @@ class RestaurantViewModel(application: Application) : AndroidViewModel(applicati
                 totalCost = totalCost,
                 paymentMethod = checkoutPaymentMethod.value,
                 amountReceived = checkoutAmountReceived.value,
-                changeGiven = checkoutChangeGiven.value
+                changeGiven = checkoutChangeGiven.value,
+                notes = checkoutNotes.value.trim().ifBlank { null }
             )
 
             val orderItems = itemsInCart.map {

@@ -549,8 +549,11 @@ object PdfReportHelper {
             strokeWidth = 1f
         }
 
-        canvas.drawRoundRect(40f, y, 555f, y + 80f, 8f, 8f, cardPaint)
-        canvas.drawRoundRect(40f, y, 555f, y + 80f, 8f, 8f, cardBorderPaint)
+        val hasNotes = !order.notes.isNullOrBlank()
+        val cardHeight = if (hasNotes) 100f else 80f
+
+        canvas.drawRoundRect(40f, y, 555f, y + cardHeight, 8f, 8f, cardPaint)
+        canvas.drawRoundRect(40f, y, 555f, y + cardHeight, 8f, 8f, cardBorderPaint)
 
         val formatDateTime = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
         val dateString = formatDateTime.format(Date(order.timestamp))
@@ -559,6 +562,9 @@ object PdfReportHelper {
         canvas.drawText("Factura N°: #${order.id}", 55f, y + 22f, paintBoldText)
         canvas.drawText("Fecha: $dateString", 55f, y + 42f, paintText)
         canvas.drawText("Cliente: ${order.customerName ?: "Mostrador"}", 55f, y + 62f, paintText)
+        if (hasNotes) {
+            canvas.drawText("Obs: ${order.notes}", 55f, y + 82f, paintText)
+        }
 
         // Right column info
         val typeStr = if (order.isDelivery) "A Domicilio" else if (order.tableNumber != null) "Comer Aquí (${order.tableNumber})" else "Para Llevar"
@@ -573,7 +579,7 @@ object PdfReportHelper {
         canvas.drawText("Estado: $statusStr", 300f, y + 42f, paintBoldText)
         canvas.drawText("Método de Pago: ${order.paymentMethod}", 300f, y + 62f, paintText)
 
-        y += 110f
+        y += cardHeight + 30f
 
         // Product list title
         canvas.drawText("DETALLE DE ARTÍCULOS", 40f, y, paintBoldText)

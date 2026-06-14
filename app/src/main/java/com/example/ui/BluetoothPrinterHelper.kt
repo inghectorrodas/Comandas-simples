@@ -320,6 +320,10 @@ object BluetoothPrinterHelper {
             if (!clientNameForPrinting.isNullOrBlank()) {
                 addTextLine(clientNameForPrinting.uppercase(Locale.getDefault()), CMD_ALIGN_CENTER, FONT_BOLD)
             }
+            val notesForPrinting = order.notes?.trim()
+            if (!notesForPrinting.isNullOrBlank()) {
+                addTextLine("Obs: $notesForPrinting", CMD_ALIGN_CENTER, FONT_NORMAL)
+            }
             addSeparator()
 
             // Essential sales metadata
@@ -396,6 +400,10 @@ object BluetoothPrinterHelper {
             val clientNameDetailedForPrinting = order.customerName?.trim()
             if (!clientNameDetailedForPrinting.isNullOrBlank()) {
                 addTextLine(clientNameDetailedForPrinting.uppercase(Locale.getDefault()), CMD_ALIGN_CENTER, FONT_BOLD)
+            }
+            val detailedNotesForPrinting = order.notes?.trim()
+            if (!detailedNotesForPrinting.isNullOrBlank()) {
+                addTextLine("Obs: $detailedNotesForPrinting", CMD_ALIGN_CENTER, FONT_NORMAL)
             }
             addSeparator()
 

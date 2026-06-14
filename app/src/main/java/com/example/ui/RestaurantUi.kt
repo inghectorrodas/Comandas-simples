@@ -2498,6 +2498,7 @@ fun generateReceiptHtml(
             ${if (order.isDelivery && order.deliveryAddress != null) "<b>Dirección:</b> ${order.deliveryAddress}<br>" else ""}
             <b>Servicio:</b> $serviceType<br>
             <b>Método de Pago:</b> $paymentMethodDisplay<br>
+            ${if (!order.notes.isNullOrBlank()) "<b>Observación:</b> ${order.notes}<br>" else ""}
         </div>
         
         <div class="divider"></div>
@@ -3656,6 +3657,7 @@ fun SalesTab(
         val seatTable by viewModel.tableNumber.collectAsStateWithLifecycle()
         val addressStr by viewModel.deliveryAddress.collectAsStateWithLifecycle()
         val activeOrderType by viewModel.checkoutOrderType.collectAsStateWithLifecycle()
+        val checkoutNotes by viewModel.checkoutNotes.collectAsStateWithLifecycle()
 
         var localPaymentMethod by remember { mutableStateOf("Efectivo") }
         var localAmountReceivedText by remember { mutableStateOf("") }
@@ -3756,6 +3758,17 @@ fun SalesTab(
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    OutlinedTextField(
+                        value = checkoutNotes,
+                        onValueChange = { viewModel.checkoutNotes.value = it },
+                        label = { Text("Observación (Opcional)") },
+                        placeholder = { Text("Ej. Sin cebolla, extra picante...") },
+                        modifier = Modifier.fillMaxWidth().testTag("checkout_notes_input"),
+                        singleLine = true
+                    )
 
                     Spacer(modifier = Modifier.height(4.dp))
 
@@ -4182,7 +4195,8 @@ fun SalesTab(
                                     )
                                 }
 
-                                val clientNameText = rOrder.customerName?.trim()
+                                val rOrderNotesVal = rOrder.notes?.trim()
+                                 val clientNameText = rOrder.customerName?.trim()
                                 if (!clientNameText.isNullOrBlank()) {
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
@@ -4198,7 +4212,8 @@ fun SalesTab(
                                 Text("-----------------------------------------", fontSize = 9.sp, color = Color.Gray, fontFamily = FontFamily.Monospace)
                                 
                                 Text(
-                                    text = "TICKET: #${rOrder.id}\n" +
+                                    text = (if (!rOrderNotesVal.isNullOrBlank()) "Obs: $rOrderNotesVal\n-----------------------------------------\n" else "") +
+                                           "TICKET: #${rOrder.id}\n" +
                                            "Fecha: ${SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(rOrder.timestamp))}",
                                     color = Color.Black,
                                     fontSize = 9.sp,
@@ -4354,11 +4369,13 @@ fun SalesTab(
                                     )
                                 }
 
-                                val clientNameTextDetailed = rOrder.customerName?.trim()
-                                if (!clientNameTextDetailed.isNullOrBlank()) {
+                                val rOrderNotesValDetailed = rOrder.notes?.trim()
+                                 val clientNameTextDetailed = rOrder.customerName?.trim()
+                                 val showClientOrNotesDetailed = !clientNameTextDetailed.isNullOrBlank() || !rOrderNotesValDetailed.isNullOrBlank()
+                                if (showClientOrNotesDetailed) {
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = clientNameTextDetailed.uppercase(Locale.getDefault()),
+                                        text = (if (!clientNameTextDetailed.isNullOrBlank()) clientNameTextDetailed.uppercase(Locale.getDefault()) else "") + (if (!rOrderNotesValDetailed.isNullOrBlank()) (if (!clientNameTextDetailed.isNullOrBlank()) "\n" else "") + "Obs: $rOrderNotesValDetailed" else ""),
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         fontFamily = FontFamily.Monospace,
@@ -5208,6 +5225,25 @@ fun ComandasTab(
                                         "Venta Directa de Mostrador",
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                                    )
+                                }
+                            }
+                            
+                            if (!order.notes.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = "Observación",
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.tertiary
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Observación: ${order.notes}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.tertiary
                                     )
                                 }
                             }
@@ -7884,6 +7920,15 @@ fun ImpresoraTab(
                                             fontSize = 11.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
+                                        if (!order.notes.isNullOrBlank()) {
+                                            Text(
+                                                text = "Obs: ${order.notes}",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.tertiary,
+                                                modifier = Modifier.padding(top = 2.dp)
+                                            )
+                                        }
                                     }
 
                                     Box(
