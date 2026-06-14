@@ -663,6 +663,8 @@ fun DashboardRealtimePanel(
         }
     }
 
+    var isExpanded by rememberSaveable { mutableStateOf(true) }
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -675,15 +677,19 @@ fun DashboardRealtimePanel(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Header: Title and Status Pill
+            // Header: Title and Status Pill & Expand/Collapse Toggle
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { isExpanded = !isExpanded }
+                    .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f, fill = false)
                 ) {
                     Box(
                         modifier = Modifier
@@ -703,86 +709,109 @@ fun DashboardRealtimePanel(
                     )
                 }
 
-                // Dynamic Shift Pill
-                Surface(
-                    color = (if (isShiftActive) EmeraldGreen else Color(0xFFEF4444)).copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(20.dp),
-                    border = BorderStroke(1.dp, (if (isShiftActive) EmeraldGreen else Color(0xFFEF4444)).copy(alpha = 0.25f))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = if (isShiftActive) "TURNO ACTIVO" else "SIN TURNO",
-                        color = if (isShiftActive) EmeraldGreen else Color(0xFFEF4444),
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        letterSpacing = 0.5.sp
+                    // Dynamic Shift Pill
+                    Surface(
+                        color = (if (isShiftActive) EmeraldGreen else Color(0xFFEF4444)).copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, (if (isShiftActive) EmeraldGreen else Color(0xFFEF4444)).copy(alpha = 0.25f))
+                    ) {
+                        Text(
+                            text = if (isShiftActive) "TURNO ACTIVO" else "SIN TURNO",
+                            color = if (isShiftActive) EmeraldGreen else Color(0xFFEF4444),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (isExpanded) "Colapsar" else "Expandir",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
 
-            if (isCompact) {
-                // Stack sections closely on mobile/compact
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    // Turno Info / General Status
-                    ShiftStatusSection(
-                        isShiftActive = isShiftActive,
-                        shiftTimeStr = shiftTimeStr,
-                        initialCash = initialCash,
-                        onNavigate = onNavigate
-                    )
+                    if (isCompact) {
+                        // Stack sections closely on mobile/compact
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // Turno Info / General Status
+                            ShiftStatusSection(
+                                isShiftActive = isShiftActive,
+                                shiftTimeStr = shiftTimeStr,
+                                initialCash = initialCash,
+                                onNavigate = onNavigate
+                            )
 
-                    // Realtime Sales Metrics
-                    MetricsSection(
-                        isShiftActive = isShiftActive,
-                        totalSales = totalSales,
-                        totalProfit = totalProfit,
-                        totalOrders = totalOrders,
-                        pendingOrders = pendingOrders,
-                        completedOrders = completedOrders
-                    )
+                            // Realtime Sales Metrics
+                            MetricsSection(
+                                isShiftActive = isShiftActive,
+                                totalSales = totalSales,
+                                totalProfit = totalProfit,
+                                totalOrders = totalOrders,
+                                pendingOrders = pendingOrders,
+                                completedOrders = completedOrders
+                            )
 
-                    // Quick Action Button
-                    QuickActionButton(
-                        isShiftActive = isShiftActive,
-                        onNavigate = onNavigate
-                    )
-                }
-            } else {
-                // Side-by-Side: Status & Quick Action on Left, Metrics on Right
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        ShiftStatusSection(
-                            isShiftActive = isShiftActive,
-                            shiftTimeStr = shiftTimeStr,
-                            initialCash = initialCash,
-                            onNavigate = onNavigate
-                        )
-                        QuickActionButton(
-                            isShiftActive = isShiftActive,
-                            onNavigate = onNavigate
-                        )
-                    }
+                            // Quick Action Button
+                            QuickActionButton(
+                                isShiftActive = isShiftActive,
+                                onNavigate = onNavigate
+                            )
+                        }
+                    } else {
+                        // Side-by-Side: Status & Quick Action on Left, Metrics on Right
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                ShiftStatusSection(
+                                    isShiftActive = isShiftActive,
+                                    shiftTimeStr = shiftTimeStr,
+                                    initialCash = initialCash,
+                                    onNavigate = onNavigate
+                                )
+                                QuickActionButton(
+                                    isShiftActive = isShiftActive,
+                                    onNavigate = onNavigate
+                                )
+                            }
 
-                    Column(
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        MetricsSection(
-                            isShiftActive = isShiftActive,
-                            totalSales = totalSales,
-                            totalProfit = totalProfit,
-                            totalOrders = totalOrders,
-                            pendingOrders = pendingOrders,
-                            completedOrders = completedOrders
-                        )
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                MetricsSection(
+                                    isShiftActive = isShiftActive,
+                                    totalSales = totalSales,
+                                    totalProfit = totalProfit,
+                                    totalOrders = totalOrders,
+                                    pendingOrders = pendingOrders,
+                                    completedOrders = completedOrders
+                                )
+                            }
+                        }
                     }
                 }
             }
