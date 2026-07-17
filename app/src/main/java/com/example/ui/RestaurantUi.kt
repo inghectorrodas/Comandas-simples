@@ -2941,7 +2941,7 @@ fun SalesTab(
                         }
                     } else {
                         LazyVerticalGrid(
-                            columns = GridCells.Fixed(2),
+                            columns = GridCells.Fixed(3),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             modifier = Modifier.weight(1f)
@@ -2979,7 +2979,7 @@ fun SalesTab(
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .height(72.dp)
+                                                .height(60.dp)
                                                 .clip(RoundedCornerShape(8.dp))
                                                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)),
                                             contentAlignment = Alignment.Center
@@ -2994,11 +2994,14 @@ fun SalesTab(
                                         Text(
                                             text = dish.name,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp,
-                                            maxLines = 1,
+                                            fontSize = 11.sp,
+                                            maxLines = 2,
+                                            minLines = 2,
                                             overflow = TextOverflow.Ellipsis,
-                                            color = MaterialTheme.colorScheme.onSurface
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            lineHeight = 13.sp
                                         )
+                                        Spacer(modifier = Modifier.height(4.dp))
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -3007,7 +3010,7 @@ fun SalesTab(
                                             Text(
                                                 text = dish.price.formatPrice(),
                                                 fontWeight = FontWeight.Black,
-                                                fontSize = 12.sp,
+                                                fontSize = 11.sp,
                                                 color = MaterialTheme.colorScheme.secondary
                                             )
                                             Surface(
@@ -3016,10 +3019,10 @@ fun SalesTab(
                                             ) {
                                                 Text(
                                                     text = "St: $stockAvailable",
-                                                    fontSize = 9.sp,
+                                                    fontSize = 8.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = if (stockAvailable > 5) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                    modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
                                                 )
                                             }
                                         }
@@ -3131,13 +3134,15 @@ fun SalesTab(
                                                     )
                                                 }
 
-                                                Column {
+                                                Column(modifier = Modifier.weight(1f)) {
                                                     Text(
-                                                        cartItem.dish.name,
+                                                        text = cartItem.dish.name,
                                                         fontWeight = FontWeight.Bold,
-                                                        fontSize = 13.sp,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
+                                                        fontSize = 12.sp,
+                                                        maxLines = 2,
+                                                        minLines = 2,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        lineHeight = 14.sp
                                                     )
                                                     Text(
                                                         (cartItem.dish.price * cartItem.quantity).formatPrice(),
@@ -3334,7 +3339,7 @@ fun SalesTab(
                 }
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 140.dp),
+                    columns = GridCells.Fixed(3),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.weight(1f)
@@ -3388,11 +3393,14 @@ fun SalesTab(
                                 Text(
                                     text = dish.name,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    maxLines = 1,
+                                    fontSize = 13.sp,
+                                    maxLines = 2,
+                                    minLines = 2,
                                     overflow = TextOverflow.Ellipsis,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    lineHeight = 15.sp
                                 )
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = dish.category,
                                     fontSize = 11.sp,
@@ -3545,11 +3553,13 @@ fun SalesTab(
 
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        item.dish.name,
+                                        text = item.dish.name,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        maxLines = 2,
+                                        minLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        lineHeight = 15.sp
                                     )
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Text(
