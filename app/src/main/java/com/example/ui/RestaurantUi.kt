@@ -3153,42 +3153,65 @@ fun SalesTab(
                                                 }
                                             }
 
-                                            // Count Control
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                            ) {
-                                                IconButton(
-                                                    onClick = { viewModel.removeFromCart(cartItem.dish) },
-                                                    modifier = Modifier
-                                                        .size(28.dp)
-                                                        .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(6.dp))
-                                                ) {
-                                                    Text("-", fontWeight = FontWeight.Black)
-                                                }
-                                                Text(
-                                                    "${cartItem.quantity}",
-                                                    fontWeight = FontWeight.Black,
-                                                    fontSize = 14.sp
-                                                )
-                                                val stockInCart = cart[cartItem.dish.id]?.quantity ?: 0
-                                                val stockAvailable = cartItem.dish.dailyStock - stockInCart
-                                                IconButton(
-                                                    onClick = {
-                                                        if (stockAvailable > 0) {
-                                                            viewModel.addToCart(cartItem.dish)
-                                                        } else {
-                                                            Toast.makeText(context, "No hay más stock", Toast.LENGTH_SHORT).show()
-                                                        }
-                                                    },
-                                                    enabled = stockAvailable > 0,
-                                                    modifier = Modifier
-                                                        .size(28.dp)
-                                                        .background(if (stockAvailable > 0) MaterialTheme.colorScheme.primary else Color.Gray, shape = RoundedCornerShape(6.dp))
-                                                ) {
-                                                    Text("+", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onPrimary)
-                                                }
-                                            }
+                                                                                         // Count Control - Modern, compact unified pill
+                                             Row(
+                                                 verticalAlignment = Alignment.CenterVertically,
+                                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                 modifier = Modifier
+                                                     .background(
+                                                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.60f),
+                                                         shape = RoundedCornerShape(24.dp)
+                                                     )
+                                                     .padding(horizontal = 8.dp, vertical = 4.dp)
+                                             ) {
+                                                 // Minus Button
+                                                 Box(
+                                                     modifier = Modifier
+                                                         .size(28.dp)
+                                                         .clip(CircleShape)
+                                                         .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                         .clickable { viewModel.removeFromCart(cartItem.dish) },
+                                                     contentAlignment = Alignment.Center
+                                                 ) {
+                                                     Text(
+                                                         text = "−",
+                                                         fontWeight = FontWeight.Bold,
+                                                         fontSize = 16.sp,
+                                                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                     )
+                                                 }
+
+                                                 Text(
+                                                     text = "${cartItem.quantity}",
+                                                     fontWeight = FontWeight.Bold,
+                                                     fontSize = 14.sp,
+                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                     modifier = Modifier.padding(horizontal = 6.dp)
+                                                 )
+
+                                                 val stockInCart = cart[cartItem.dish.id]?.quantity ?: 0
+                                                 val stockAvailable = cartItem.dish.dailyStock - stockInCart
+                                                 // Plus Button
+                                                 Box(
+                                                     modifier = Modifier
+                                                         .size(28.dp)
+                                                         .clip(CircleShape)
+                                                         .background(
+                                                             color = if (stockAvailable > 0) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.3f)
+                                                         )
+                                                         .clickable(enabled = stockAvailable > 0) {
+                                                             viewModel.addToCart(cartItem.dish)
+                                                         },
+                                                     contentAlignment = Alignment.Center
+                                                 ) {
+                                                     Text(
+                                                         text = "+",
+                                                         fontWeight = FontWeight.Bold,
+                                                         fontSize = 16.sp,
+                                                         color = if (stockAvailable > 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                                                     )
+                                                 }
+                                             }
                                         }
                                     }
                                 }
@@ -3577,47 +3600,64 @@ fun SalesTab(
                                     }
                                 }
 
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    IconButton(
-                                        onClick = { viewModel.removeFromCart(item.dish) },
-                                        modifier = Modifier.size(28.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.KeyboardArrowDown,
-                                            contentDescription = "Restar",
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
+                                                                 // Count Control - Modern, compact unified pill
+                                 Row(
+                                     verticalAlignment = Alignment.CenterVertically,
+                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                     modifier = Modifier
+                                         .background(
+                                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.60f),
+                                             shape = RoundedCornerShape(24.dp)
+                                         )
+                                         .padding(horizontal = 8.dp, vertical = 4.dp)
+                                 ) {
+                                     // Minus Button
+                                     Box(
+                                         modifier = Modifier
+                                             .size(28.dp)
+                                             .clip(CircleShape)
+                                             .background(MaterialTheme.colorScheme.surfaceVariant)
+                                             .clickable { viewModel.removeFromCart(item.dish) },
+                                         contentAlignment = Alignment.Center
+                                     ) {
+                                         Text(
+                                             text = "−",
+                                             fontWeight = FontWeight.Bold,
+                                             fontSize = 16.sp,
+                                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                                         )
+                                     }
 
-                                    Text(
-                                        "${item.quantity}",
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 14.sp,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
+                                     Text(
+                                         text = "${item.quantity}",
+                                         fontWeight = FontWeight.Bold,
+                                         fontSize = 14.sp,
+                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                         modifier = Modifier.padding(horizontal = 6.dp)
+                                     )
 
-                                    val stockAvailable = item.dish.dailyStock - item.quantity
-                                    IconButton(
-                                        onClick = {
-                                            if (stockAvailable > 0) {
-                                                viewModel.addToCart(item.dish)
-                                            } else {
-                                                Toast.makeText(context, "Stock máximo alcanzado", Toast.LENGTH_SHORT).show()
-                                            }
-                                        },
-                                        enabled = stockAvailable > 0,
-                                        modifier = Modifier.size(28.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Add,
-                                            contentDescription = "Sumar",
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
+                                     val stockAvailable = item.dish.dailyStock - item.quantity
+                                     // Plus Button
+                                     Box(
+                                         modifier = Modifier
+                                             .size(28.dp)
+                                             .clip(CircleShape)
+                                             .background(
+                                                 color = if (stockAvailable > 0) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.3f)
+                                             )
+                                             .clickable(enabled = stockAvailable > 0) {
+                                                 viewModel.addToCart(item.dish)
+                                             },
+                                         contentAlignment = Alignment.Center
+                                     ) {
+                                         Text(
+                                             text = "+",
+                                             fontWeight = FontWeight.Bold,
+                                             fontSize = 16.sp,
+                                             color = if (stockAvailable > 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                                         )
+                                     }
+                                 }
 
                                 Spacer(modifier = Modifier.width(4.dp))
 
